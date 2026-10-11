@@ -18,7 +18,7 @@ const context = vm.createContext({
   Date, Math: randomMath, Intl, Number, JSON, setTimeout, clearTimeout,
   document: { querySelector: element }
 });
-vm.runInContext(beforeEvents + '\n globalThis.api = { newGame, loadGame, buyHub, buyTruck, hub, hubTrucks, hubCapacity, hubHourlyCapacity, settleHub, collectHub, combinePickupHints, assignPrivatePickup, settleTrips, applyOrderReward, startHubUpgrade, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; replenishOrders = () => {}; } };\n})();', context);
+vm.runInContext(beforeEvents + '\n globalThis.api = { newGame, loadGame, buyHub, buyTruck, hub, hubTrucks, hubCapacity, hubHourlyCapacity, hubSecondsUntilFull, settleHub, collectHub, combinePickupHints, assignPrivatePickup, settleTrips, applyOrderReward, startHubUpgrade, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; replenishOrders = () => {}; } };\n})();', context);
 const api = context.api;
 api.mute();
 
@@ -37,17 +37,31 @@ assert.equal(state.coins, 550);
 assert.ok(api.hubHourlyCapacity() > 0);
 
 const h = api.hub();
+const now = Date.now();
+h.nextCycleAt = now + 60 * 60 * 1000;
+assert.equal(api.hubSecondsUntilFull(h, now), 6 * 60 * 60, 'empty hub fills in six active hours');
+h.nextCycleAt = now + 30 * 60 * 1000;
+assert.equal(api.hubSecondsUntilFull(h, now), 5.5 * 60 * 60, 'elapsed part of the current hour is deducted');
+h.cashboxCycles = 2;
+assert.equal(api.hubSecondsUntilFull(h, now), 3.5 * 60 * 60, 'stored cycles reduce time to full');
+h.cashboxCycles = 0;
 h.nextCycleAt = Date.now() - 9 * 60 * 60 * 1000;
 api.settleHub(Date.now());
-assert.equal(h.cashboxCycles, 10);
-assert.equal(h.cashboxHints, 100);
+assert.equal(h.cashboxCycles, 6);
+assert.equal(h.cashboxHints, 60);
+assert.equal(api.hubSecondsUntilFull(h, Date.now()), 0, 'full hub remains full');
 assert.ok(h.cashboxCoins > 0);
 assert.equal(state.xp, 0, 'hub generates no XP');
 const earned = h.cashboxCoins;
 api.collectHub();
 assert.equal(state.coins, 550 + earned);
-assert.equal(state.inventory.pickupHints, 100);
+assert.equal(state.inventory.pickupHints, 60);
 assert.equal(h.cashboxCycles, 0);
+h.nextCycleAt = Date.now() - 3 * 60 * 60 * 1000;
+api.settleHub(Date.now());
+assert.equal(h.cashboxCycles, 4);
+api.collectHub();
+assert.equal(state.inventory.pickupHints, 100);
 
 api.combinePickupHints();
 assert.equal(state.inventory.pickupHints, 0);
@@ -85,4 +99,11 @@ assert.equal(migrated.orders.some(order => order.id === 'ALT-A'), false);
 assert.equal(migrated.orders.some(order => order.id === 'ALT-B'), true);
 assert.equal(migrated.trucks.some(truck => truck.id === 'ALT-01'), true);
 assert.equal(migrated.trucks.some(truck => truck.tier === 2), true, 'legacy city-only game gets a regular starter LKW');
+const oldFull = api.newGame('hamburg');
+oldFull.hubs = [{ id: 'city-hub', nextCycleAt: Date.now() + 60 * 60 * 1000, salesLevel: 0, construction: null, cashboxCycles: 10, cashboxCoins: 70, cashboxHints: 100, totalTons: 10 }];
+api.setGame(oldFull);
+assert.equal(api.hubSecondsUntilFull(api.hub(), Date.now()), 0, 'older 12-hour cashbox is already full');
+api.collectHub();
+assert.equal(oldFull.coins, 1070, 'older cashbox keeps all stored coins');
+assert.equal(oldFull.inventory.pickupHints, 100, 'older cashbox keeps all stored hints');
 console.log('hub, collection, private pickup and timed upgrade: OK');

@@ -16,7 +16,7 @@
   const HUB_ROUTE_KM = 12;
   const HUB_SALE_PER_TON = 10;
   const HUB_PURCHASE_PER_TON = 3;
-  const HUB_CASHBOX_CYCLES = 12;
+  const HUB_CASHBOX_CYCLES = 6;
   const HUB_MAX_SALES_LEVEL = 25;
   const PRIVATE_PICKUP_HINT_COST = 100;
   const HUB_PRICE = 0;
@@ -659,6 +659,13 @@
   function hubSalesPercent(level) { return 75 + level; }
   function hubTripSeconds(truck) { return HUB_ROUTE_KM / truckSpeed(truck, truck.capacity) + HUB_ROUTE_KM / truckSpeed(truck, 0); }
   function hubHourlyCapacity() { return round2(hubTrucks().reduce((sum, truck) => sum + Math.floor(HUB_WORK_SECONDS / hubTripSeconds(truck)) * truck.capacity, 0)); }
+  function hubSecondsUntilFull(h, now) {
+    if (!h) return null;
+    const remainingCycles = Math.max(0, HUB_CASHBOX_CYCLES - h.cashboxCycles);
+    if (!remainingCycles) return 0;
+    if (!hubTrucks().length) return null;
+    return Math.max(0, (h.nextCycleAt - now + (remainingCycles - 1) * HUB_CYCLE_MS) / 1000);
+  }
   function hubUpgradeContactCost(level) { return level * 5; }
   function completeHubUpgrade(h, at) {
     if (!h.construction || h.construction.finishAt > at) return false;
@@ -1213,6 +1220,16 @@
     $('#stat-km-pay').textContent = `${rateMoney(FREIGHT_PAY_PER_TON_KM)} M`;
     $('#stat-km-balance').textContent = `${rateMoney(LOAD_COST_PER_TON_KM)} M`;
     $('#stat-km-balance-row').className = '';
+    const h = hub();
+    const fullIn = hubSecondsUntilFull(h, Date.now());
+    $('#hub-dashboard-coins').textContent = `${money(h?.cashboxCoins || 0)} M`;
+    $('#hub-dashboard-hints').textContent = `${integer(h?.cashboxHints || 0)} Abholhinweise`;
+    $('#hub-dashboard-cycles').textContent = `${Math.min(h?.cashboxCycles || 0, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden`;
+    $('#hub-dashboard-timer-label').textContent = !h ? 'Noch nicht eröffnet' : fullIn === 0 ? 'Kassenbestand voll' : fullIn === null ? 'Keine Stadttransporter im Hub' : 'Voll in';
+    $('#hub-dashboard-timer').textContent = fullIn === null ? '–' : countdown(fullIn);
+    $('#hub-dashboard-collect').hidden = !h;
+    $('#hub-dashboard-collect').disabled = !h || !h.cashboxCycles;
+    $('#hub-dashboard-open').hidden = !!h;
     const busyTruckIds = new Set(game.orders.filter(order => order.status === 'active').map(order => order.truckId));
     const idleTrucks = game.trucks.filter(truck => !busyTruckIds.has(truck.id) && !truck.hubAssigned);
     const idleList = $('#idle-trucks-list');
@@ -1255,7 +1272,7 @@
     const phase = h.cashboxCycles >= HUB_CASHBOX_CYCLES ? 'Kassenbestand voll · bitte abholen' : cycleSeconds > 15 * 60 ? 'Verteilung läuft' : 'Pause bis zum nächsten Einkauf';
     const nextLevel = h.salesLevel + 1;
     const cost = hubUpgradeContactCost(nextLevel);
-    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${h.cashboxCycles} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung.</p><button class="button button-primary" data-collect-hub ${h.cashboxCycles ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, vorhanden ${game.inventory.supplierContacts}. Keine Münzkosten.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
+    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung.</p><button class="button button-primary" data-collect-hub ${h.cashboxCycles ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, vorhanden ${game.inventory.supplierContacts}. Keine Münzkosten.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
   }
   function renderSpecialTrips() {
     const el = $('#special-content');
