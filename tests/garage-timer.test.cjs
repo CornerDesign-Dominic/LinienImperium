@@ -36,7 +36,7 @@ state.trucks.push({ id: 'LKW-03', tier: 2, model: 'Allrounder', symbol: '🚛', 
 api.renderFleet();
 const sections = element('#fleet-list').innerHTML.split('<section class="fleet-section">').slice(1);
 assert.equal(sections.length, 2, 'Garage has two tables');
-assert.match(sections[0], /Landesweit & International/);
+assert.match(sections[0], /Reguläre LKW/);
 assert.match(sections[0], /LKW-03/);
 assert.match(sections[0], /LKW-01/);
 assert.match(sections[1], /Stadthub/);

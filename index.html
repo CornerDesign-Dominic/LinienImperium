@@ -21,6 +21,7 @@
         <button class="nav-link" data-view="dealer"><span class="nav-icon">🚚</span> Händler</button>
         <button class="nav-link" data-view="hub"><span class="nav-icon">⌖</span> Stadthub</button>
         <button class="nav-link" data-view="inventory"><span class="nav-icon">▣</span> Vorräte</button>
+        <button class="nav-link" data-view="development"><span class="nav-icon">⚒</span> Entwicklung</button>
         <button class="nav-link" data-view="company"><span class="nav-icon">▧</span> Firma</button>
         <button class="nav-link" data-view="personnel"><span class="nav-icon">♙</span> Personal</button>
         <button class="nav-link" data-view="statistics"><span class="nav-icon">▥</span> Statistiken</button>
@@ -43,7 +44,7 @@
           <div class="dashboard-grid"><section class="panel"><div class="section-head"><h2>Freie LKW</h2><button class="text-button" data-go="fleet">Zur Garage <span>↗</span></button></div><div id="idle-trucks-list"></div></section><section class="panel completed-panel"><div class="section-head"><h2>Auftragsprämien</h2><button type="button" class="button button-outline collect-all-button" id="collect-all-rewards" disabled>Alles sammeln</button></div><div id="completed-orders-list"></div></section></div>
         </div>
 
-        <div id="view-orders" class="view"><div class="page-heading"><div><h1>Aufträge<span class="heading-dot">.</span></h1></div><div class="refresh-controls"><div class="refresh-timer">Automatisch neue Angebote in <strong id="order-refresh-countdown">15:00</strong></div><button class="button button-primary" id="refresh-orders">↻ Neue Angebote · 50 M</button></div></div><div id="category-filters" class="category-filters"></div><div id="orders-list" class="orders-list"></div></div>
+        <div id="view-orders" class="view"><div class="page-heading"><div><h1>Aufträge<span class="heading-dot">.</span></h1></div><div class="refresh-controls"><div class="refresh-timer">Automatisch neue Angebote in <strong id="order-refresh-countdown">15:00</strong></div><button class="button button-primary" id="refresh-orders">↻ Neue Angebote · 50 M</button></div></div><div id="orders-list" class="orders-list"></div></div>
         <div id="view-special" class="view"><div class="page-heading"><div><h1>Sonderfahrten<span class="heading-dot">.</span></h1><p>Gesammelte Fahrten bleiben erhalten, bis du sie einem LKW zuweist.</p></div></div><div id="special-content"></div></div>
 
         <div id="view-fleet" class="view"><div class="page-heading"><div><h1>Garage<span class="heading-dot">.</span></h1></div></div><div class="fleet-summary"><span id="fleet-summary-text">0 LKW</span><span>Rang bis +25 % Tempo · beladen 1 % langsamer je Tonne</span></div><div id="fleet-list"></div></div>
@@ -54,6 +55,8 @@
 
         <div id="view-inventory" class="view"><div class="page-heading"><div><div class="eyebrow">DEIN LAGER</div><h1>Vorräte<span class="heading-dot">.</span></h1><p>Materialien und Items deiner Spedition.</p></div></div><div id="inventory-content"></div></div>
 
+        <div id="view-development" class="view"><div class="page-heading"><div><h1>Entwicklung<span class="heading-dot">.</span></h1></div></div><div id="development-content"></div></div>
+
         <div id="view-company" class="view">
           <div class="page-heading"><div><div class="eyebrow">DEINE SPEDITION</div><h1>Firma<span class="heading-dot">.</span></h1><p>Baue die Abteilungen deines Hauptsitzes aus.</p></div></div>
           <section class="panel hub-preview"><div><div class="eyebrow">VERTEILERZENTRUM</div><h2>Stadthub</h2><p id="hub-capacity-text">0 Stadttransporter im Hub.</p></div><button class="button button-outline" data-go="hub">Stadthub öffnen</button></section>
@@ -63,7 +66,7 @@
             <div class="section-head"><div><div class="eyebrow">PERSONALABTEILUNG</div><h2>Neugestaltung in Vorbereitung</h2></div><span class="pill pill-gray">PAUSIERT</span></div>
             <p>Einstellungen sind derzeit ausgesetzt. Die Abteilung beeinflusst weder LKW-Plätze noch Betriebskosten. Bereits bezahlte Einstellungen wurden einmalig erstattet.</p>
           </section>
-          <section id="dispatch-upgrades" class="panel dispatch-upgrades" hidden><div class="section-head"><div><div class="eyebrow">DISPOSITION</div><h2>Auftragslisten ausbauen</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div><p>Jede Stufe fügt landesweiten oder internationalen Aufträgen ein Angebot hinzu. Höchstwert: Stufe 5 und damit 10 Angebote.</p><div id="dispatch-upgrade-list" class="offer-upgrade-grid"></div></section>
+          <section id="dispatch-upgrades" class="panel dispatch-upgrades" hidden><div class="section-head"><div><div class="eyebrow">DISPOSITION</div><h2>Auftragsbörse ausbauen</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div><p>Jede Stufe fügt der gemeinsamen Auftragsbörse einen Platz hinzu. Höchstwert: Stufe 10 und damit 15 Angebote.</p><div id="dispatch-upgrade-list" class="offer-upgrade-grid"></div></section>
           <section id="workshop-upgrades" class="panel workshop-upgrades" hidden>
             <div class="section-head"><div><div class="eyebrow">WERKSTATT</div><h2>Betriebskosten senken</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div>
             <p>Jede Stufe senkt den Fahrzeugpreis um 0,001 M pro Kilometer. Bei Stufe 50 sparst du 0,05 M je gefahrenem Kilometer und LKW.</p>
@@ -93,6 +96,7 @@
   <dialog id="department-dialog" class="dialog department-dialog" aria-labelledby="department-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow" id="department-dialog-location"></div><h2 id="department-dialog-title">Abteilung ausbauen</h2></div><button type="button" class="truck-dialog-close" id="close-department-dialog" aria-label="Schließen">×</button></div><div id="department-locked-content"></div><div id="department-detail-content"></div></dialog>
   <dialog id="assign-dialog" class="dialog"><form method="dialog"><button class="dialog-close" aria-label="Schließen">×</button><div class="eyebrow">AUFTRAG ZUWEISEN</div><h2 id="assign-title">Auftrag</h2><p id="assign-description"></p><div id="assign-vehicles" class="assign-vehicles"></div><button class="button button-outline dialog-cancel" value="cancel">Abbrechen</button></form></dialog>
   <dialog id="truck-dialog" class="dialog truck-dialog" aria-labelledby="truck-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow">FAHRZEUGDETAILS</div><h2 id="truck-dialog-title">LKW</h2></div><button type="button" class="truck-dialog-close" id="close-truck-dialog" aria-label="Schließen">×</button></div><div id="truck-dialog-content"></div></dialog>
+  <dialog id="sale-dialog" class="dialog truck-dialog" aria-labelledby="sale-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow">VERKAUF BESTÄTIGEN</div><h2 id="sale-dialog-title">Fahrzeug verkaufen?</h2></div><button type="button" class="truck-dialog-close" id="close-sale-dialog" aria-label="Schließen">×</button></div><div id="sale-dialog-content"></div><div class="bulk-reward-actions"><button type="button" class="button button-outline" id="cancel-sale">Abbrechen</button><button type="button" class="button button-primary" id="confirm-sale">Endgültig verkaufen</button></div></dialog>
   <dialog id="reward-dialog" class="dialog reward-dialog" aria-labelledby="reward-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow">AUFTRAGSPRÄMIE</div><h2 id="reward-dialog-title">Auftrag abgeschlossen</h2></div><button type="button" class="truck-dialog-close" id="close-reward-dialog" aria-label="Schließen">×</button></div><div id="reward-dialog-content"></div><button type="button" class="button button-primary reward-done" id="reward-done-button">Schließen</button></dialog>
   <dialog id="bulk-reward-dialog" class="dialog reward-dialog" aria-labelledby="bulk-reward-title"><div class="truck-dialog-header"><div><div class="eyebrow">AUFTRAGSPRÄMIEN</div><h2 id="bulk-reward-title">Alle Prämien sammeln</h2></div><button type="button" class="truck-dialog-close" id="close-bulk-reward" aria-label="Schließen">×</button></div><div id="bulk-reward-content"></div><div class="bulk-reward-actions"><button type="button" class="button button-outline" id="cancel-bulk-reward">Abbrechen</button><button type="button" class="button button-primary" id="confirm-bulk-reward">Bestätigen</button></div></dialog>
   <script src="app.js" defer></script>

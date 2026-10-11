@@ -129,7 +129,7 @@ delete old.inventory.capacityModules;
 old.trucks[0].capacity = 8;
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 35);
+assert.equal(migrated.version, 37);
 assert.equal(migrated.trucks[0].capacity, 4);
 assert.equal(migrated.inventory.capacityModules, 0);
 assert.equal(api.loadGame().trucks[0].capacity, 4);

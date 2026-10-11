@@ -34,16 +34,13 @@
     epic: [5, 10, 10, 10, 15, 15, 15, 20, 20, 25],
     legendary: [1, 2, 2, 2, 3, 3, 3, 4, 4, 5]
   };
-  // Vorläufige Lootwerte: unabhängige Würfe je Seltenheit; spätere Boni hier ergänzen.
+  // Sonder- und Empfehlungsfahrten behalten nur ihre zusätzlichen hohen Seltenheiten.
   const GEAR_LOOT = {
-    city: { common: [90, 110] },
-    normal: { common: [90, 110], uncommon: [.02, 100, 150] },
-    customer: { common: [110, 130], uncommon: [.05, 100, 150], rare: [.10, 25, 40] },
-    special: { common: [130, 150], uncommon: [.08, 100, 150], rare: [.15, 25, 40], epic: [.20, 5, 10] },
-    referral: { common: [150, 170], uncommon: [.10, 100, 150], rare: [.20, 25, 40], epic: [.25, 5, 10], legendary: [1, 2, .25] }
+    special: { epic: [.20, 5, 10] },
+    referral: { epic: [.25, 5, 10], legendary: [1, 2, .25] }
   };
-  const INTERNATIONAL_COMMON_MULTIPLIER = 1.2;
-  const OFFERS_PER_CATEGORY = 5;
+  const BASE_OFFERS = 5;
+  const INTERNATIONAL_OFFER_CHANCE = .20;
   const CUSTOMER_OFFER_CHANCE = .10;
   const SPECIAL_CHANCES = {
     national: { award: .20, module: .08, referral: .04, referralModule: .20 },
@@ -63,7 +60,7 @@
   const DISPATCH_UNLOCK_PRICE = 5000;
   const WORKSHOP_UNLOCK_PRICE = 5000;
   const SALES_UNLOCK_PRICE = 5000;
-  const MAX_OFFER_LEVEL = 5;
+  const MAX_OFFER_LEVEL = 10;
   const MAX_WORKSHOP_LEVEL = 50;
   const MAX_SALES_LEVEL = 3;
   const DEPARTMENTS = [
@@ -76,16 +73,20 @@
     { id: 'sales', name: 'Vertrieb & Kundenbetreuung', icon: '◎', description: 'Erlaubt, Aufträge bei Angebotswechseln anzuheften.' }
   ];
   const TRUCKS = [
-    { model: 'Kleintransporter', capacity: 1, emptyCostPerKm: .2, price: 450, symbol: '🚚', description: 'Der Einstieg für den Stadtverkehr.' },
-    { model: 'Stadtlaster', capacity: 1.5, emptyCostPerKm: .5, price: 900, symbol: '🚚', description: 'Für Stadtverkehr.' },
-    { model: 'Allrounder', capacity: 4, emptyCostPerKm: .65, price: 1600, symbol: '🚛', description: 'Für landesweite Aufträge.' },
-    { model: 'Fernlaster', capacity: 8.5, emptyCostPerKm: .7, price: 2600, symbol: '🚛', description: 'Für landesweite und internationale Aufträge.' },
-    { model: 'Schwerlaster', capacity: 18, emptyCostPerKm: 1.6, price: 4000, symbol: '🚛', description: 'Landesweit und international.' }
+    { model: 'Sprinter', capacity: 1, emptyCostPerKm: .2, price: 4000, symbol: '🚚', description: 'Der Einstieg für den Stadtverkehr.' },
+    { model: '3,5-Tonner', capacity: 1.5, emptyCostPerKm: .5, price: 20000, symbol: '🚚', description: 'Für Stadtverkehr.' },
+    { model: '7,5-Tonner', capacity: 4, emptyCostPerKm: .65, price: 25000, symbol: '🚛', description: 'Für landesweite Aufträge.' },
+    { model: '18-Tonner', capacity: 8.5, emptyCostPerKm: .7, price: 100000, symbol: '🚛', description: 'Nur für landesweite Aufträge.' },
+    { model: 'Sattelzug', capacity: 18, emptyCostPerKm: 1.6, price: 500000, symbol: '🚛', description: 'Landesweit und international.' },
+    // Tier 4 bleibt für vorhandene Spielstände der LKW mit 18 t Ladekapazität.
+    { model: '26-Tonner', capacity: 13, emptyCostPerKm: 1.05, price: 250000, symbol: '🚛', description: 'Landesweit und international.' },
+    { model: '40-t-Tautliner', capacity: 24, emptyCostPerKm: 2.10, price: 1000000, symbol: '🚛', description: 'Landesweit und international.' }
   ];
+  const LEGACY_TRUCK_PRICES = [450, 900, 1600, 2600, 4000];
   const CATEGORIES = [
     { id: 'city', label: 'Stadtverkehr', tiers: [0, 1] },
-    { id: 'national', label: 'Landesweit', tiers: [2, 3, 4] },
-    { id: 'international', label: 'International', tiers: [3, 4] }
+    { id: 'national', label: 'Landesweit', tiers: [2, 3, 4, 5, 6] },
+    { id: 'international', label: 'International', tiers: [4, 5, 6] }
   ];
   const CUSTOMERS = [
     { id: 'nordbau', name: 'Nordbau GmbH', initials: 'NB', industry: 'Baustoffe', cargo: 'Baustoffe', unlockLevel: 3, category: 'national' },
@@ -135,11 +136,11 @@
   const random = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const pick = (items) => items[random(0, items.length - 1)];
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-  const newCompany = () => ({ departments: {}, offerLevels: { city: 0, national: 0, international: 0 }, workshopLevel: 0, salesLevel: 0, employees: 0 });
+  const newCompany = () => ({ departments: {}, offerLevel: 0, offerLevels: { city: 0, national: 0, international: 0 }, workshopLevel: 0, salesLevel: 0, employees: 0 });
 
   function randomCategory() {
     const roll = Math.random();
-    return roll < .75 ? 'national' : 'international';
+    return roll < INTERNATIONAL_OFFER_CHANCE ? 'international' : 'national';
   }
   function startCityById(id) { return START_CITIES.find(location => location.id === id); }
   function createOrder(id, options = {}) {
@@ -158,13 +159,14 @@
       distance = starter ? 8 : random(CITY_DISTANCE_MIN, CITY_DISTANCE_MAX);
       volume = starter ? 20 : random(CITY_VOLUME_MIN, CITY_VOLUME_MAX);
     } else if (category === 'national') {
-      const [destination, routeDistance] = pick(home.national);
+      const [destination, routeDistance] = pick(home.national.filter(([, km]) => km >= 40 && km <= 180));
       from = home.city; to = destination;
-      distance = Math.round(routeDistance * random(95, 105) / 100); volume = random(4, 15) * 10;
+      distance = routeDistance; volume = random(1, 8) * 10;
     } else {
-      const [destination, country, routeDistance] = pick(home.international);
+      const inRange = home.international.filter(([, , km]) => km >= 150 && km <= 500);
+      const [destination, country, routeDistance] = pick(inRange.length ? inRange : home.international);
       from = home.city; to = `${destination}, ${country}`; destinationCountry = country;
-      distance = Math.round(routeDistance * random(95, 105) / 100); volume = random(6, 22) * 10;
+      distance = routeDistance; volume = random(1, 6) * 10;
     }
     const baseVolume = volume;
     return {
@@ -176,26 +178,81 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 35, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 37, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
       stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
-      for (const tier of [2]) {
+      for (const tier of [2, 2]) {
         const model = TRUCKS[tier];
-        state.trucks.push({ id: `LKW-${String(state.nextTruck++).padStart(2, '0')}`, tier, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0 });
+        state.trucks.push({ id: `LKW-${String(state.nextTruck++).padStart(2, '0')}`, tier, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, purchasePrice: null, kmDriven: 0, toursCompleted: 0, ordersCompleted: 0 });
       }
-      for (const category of CATEGORIES.filter(item => item.id !== 'city')) {
-        for (let i = 0; i < OFFERS_PER_CATEGORY; i++) state.orders.push(createOrder(state.nextOrder++, { level: 1, category: category.id, startCity, fresh: true }));
-      }
-      state.events.unshift({ text: `Deine Spedition in ${startCityById(startCity).city} startet mit einem Allrounder.`, at: Date.now() });
+      for (let i = 0; i < BASE_OFFERS; i++) state.orders.push(createOrder(state.nextOrder++, { category: randomCategory(), startCity }));
+      state.events.unshift({ text: `Deine Spedition in ${startCityById(startCity).city} startet mit zwei 7,5-Tonnern.`, at: Date.now() });
     }
     return state;
   }
 
   function loadGame() {
     try {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (current?.version === 37 && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return refreshTruckModelNames(current);
+    } catch (_) { /* Beschädigte Spielstände behandelt die bestehende Migration. */ }
+    const stored = loadLegacyGame();
+    if (stored.version === 36) return refreshTruckModelNames(upgradeVehicleSaleSave(stored));
+    if (stored.version !== 35) return refreshTruckModelNames(stored);
+    const old = stored.company?.offerLevels || {};
+    stored.company ||= newCompany();
+    stored.company.offerLevel = clamp((old.national || 0) + (old.international || 0), 0, MAX_OFFER_LEVEL);
+    stored.version = 36;
+    // Keep every legacy offer and assignment; normal replenishment fills missing slots later.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return refreshTruckModelNames(upgradeVehicleSaleSave(stored));
+  }
+  function refreshTruckModelNames(stored) {
+    let changed = false;
+    for (const truck of stored.trucks) {
+      const model = TRUCKS[truck.tier];
+      if (model && truck.model !== model.model) {
+        truck.model = model.model;
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function upgradeVehicleSaleSave(stored) {
+    for (const truck of stored.trucks) {
+      // Only the original starter is known to have been free in old saves.
+      truck.purchasePrice = truck.id === 'LKW-01' && truck.tier === 2 ? null : LEGACY_TRUCK_PRICES[truck.tier] ?? 0;
+      truck.kmDriven = 0;
+      truck.toursCompleted = 0;
+      truck.ordersCompleted = 0;
+      truck.historyReconstructed = true;
+      // Historic hub output is pooled, so its trips cannot be assigned retroactively.
+      if (truck.hubAssigned && Number.isFinite(stored.hubs?.[0]?.nextCycleAt)) {
+        const h = stored.hubs[0];
+        const progress = clamp((Date.now() - (h.nextCycleAt - HUB_CYCLE_MS)) / (HUB_WORK_SECONDS * 1000), 0, 1);
+        truck.hubToursInCycle = Math.floor(progress * HUB_WORK_SECONDS / hubTripSeconds(truck));
+      }
+    }
+    for (const order of stored.orders) {
+      const truck = stored.trucks.find(item => item.id === order.truckId);
+      if (!truck || !['active', 'completed'].includes(order.status)) continue;
+      const delivered = Math.max(0, Number(order.delivered) || 0);
+      const capacity = Math.max(1, Number(truck.capacity) || 1);
+      const tours = Math.ceil(delivered / capacity);
+      truck.toursCompleted += tours;
+      truck.kmDriven += tours * (Number(order.distance) || 0) * (order.routeType === 'single' || order.routeType === 'dual' ? 2 : 1);
+      if (order.status === 'completed') truck.ordersCompleted++;
+    }
+    stored.version = 37;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function loadLegacyGame() {
+    try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (stored?.version === 35 && Array.isArray(stored.trucks) && Array.isArray(stored.orders) && typeof stored.coins === 'number') return stored;
+      if ((stored?.version === 36 || stored?.version === 35) && Array.isArray(stored.trucks) && Array.isArray(stored.orders) && typeof stored.coins === 'number') return stored;
       if (stored?.version === 34 && Array.isArray(stored.trucks) && Array.isArray(stored.orders) && typeof stored.coins === 'number') return upgradeHubSave(stored);
       if (stored?.version === 33 && Array.isArray(stored.trucks) && Array.isArray(stored.orders) && typeof stored.coins === 'number') return upgradeHubSave(upgradePersonnelSave(stored));
       if (stored?.version === 32 && Array.isArray(stored.trucks) && Array.isArray(stored.orders) && typeof stored.coins === 'number') return upgradeHubSave(upgradePersonnelSave(upgradeTrustSave(stored)));
@@ -595,8 +652,9 @@
   let game;
   game = loadGame();
   let currentView = 'dashboard';
-  let categoryFilter = 'national';
   let selectedTruckId = null;
+  let pendingSaleTruckId = null;
+  let pendingSaleQuote = null;
   let selectedSpecialCustomer = null;
   let selectedDepartmentId = null;
   let bulkRewardIds = [];
@@ -674,30 +732,73 @@
     addEvent(`Stadthub: Vertrieb Stufe ${h.salesLevel} abgeschlossen.`);
     return true;
   }
+  function accrueHubCycle(h, at) {
+    const cycleStart = h.nextCycleAt - HUB_CYCLE_MS;
+    const progress = clamp((at - cycleStart) / (HUB_WORK_SECONDS * 1000), 0, 1);
+    const capacity = h.cycleCapacity ?? hubHourlyCapacity();
+    const tonsDelivered = round2(capacity * hubSalesPercent(h.cycleSalesLevel ?? h.salesLevel) / 100);
+    if (tonsDelivered <= 0) return false;
+    if (h.cashboxCycles < HUB_CASHBOX_CYCLES) {
+      for (const truck of hubTrucks()) {
+        const tours = Math.floor(progress * HUB_WORK_SECONDS / hubTripSeconds(truck));
+        const additional = Math.max(0, tours - (truck.hubToursInCycle || 0));
+        truck.hubToursInCycle = tours;
+        truck.kmDriven = (truck.kmDriven || 0) + additional * HUB_ROUTE_KM * 2;
+        truck.toursCompleted = (truck.toursCompleted || 0) + additional;
+      }
+    }
+    h.cycleHintTotal ??= random(8, 12);
+    const targetCoins = round2(tonsDelivered * (HUB_SALE_PER_TON - HUB_PURCHASE_PER_TON) * progress);
+    const targetHints = Math.floor(h.cycleHintTotal * progress);
+    const targetTons = round2(tonsDelivered * progress);
+    const previousCoins = h.cyclePaidCoins || 0;
+    const previousHints = h.cyclePaidHints || 0;
+    const previousTons = h.cyclePaidTons || 0;
+    h.cyclePaidCoins = targetCoins;
+    h.cyclePaidHints = targetHints;
+    h.cyclePaidTons = targetTons;
+    if (h.cashboxCycles >= HUB_CASHBOX_CYCLES) return false;
+    const coins = round2(targetCoins - previousCoins);
+    const hints = targetHints - previousHints;
+    const delivered = round2(targetTons - previousTons);
+    if (!coins && !hints && !delivered) return false;
+    h.cashboxCoins = round2(h.cashboxCoins + coins);
+    h.cashboxHints += hints;
+    h.totalTons = round2((h.totalTons || 0) + delivered);
+    return true;
+  }
+  function beginHubCycle(h) {
+    for (const truck of hubTrucks()) truck.hubToursInCycle = 0;
+    h.cycleCapacity = hubHourlyCapacity();
+    h.cycleSalesLevel = h.salesLevel;
+    h.cycleHintTotal = h.cycleCapacity > 0 ? random(8, 12) : 0;
+    h.cyclePaidCoins = 0;
+    h.cyclePaidHints = 0;
+    h.cyclePaidTons = 0;
+  }
   function settleHub(now) {
     const h = hub();
     if (!h) return false;
     let changed = false;
-    while (h.cashboxCycles < HUB_CASHBOX_CYCLES && h.nextCycleAt <= now) {
-      const capacity = h.cycleCapacity ?? hubHourlyCapacity();
-      const tonsDelivered = round2(capacity * hubSalesPercent(h.cycleSalesLevel ?? h.salesLevel) / 100);
-      if (tonsDelivered > 0) {
-        const profit = round2(tonsDelivered * (HUB_SALE_PER_TON - HUB_PURCHASE_PER_TON));
-        h.cashboxCoins = round2(h.cashboxCoins + profit);
-        h.cashboxHints += random(8, 12);
-        h.cashboxCycles++;
-        h.totalTons = round2((h.totalTons || 0) + tonsDelivered);
-      }
+    while (h.nextCycleAt <= now && h.cashboxCycles < HUB_CASHBOX_CYCLES) {
+      changed = accrueHubCycle(h, h.nextCycleAt) || changed;
+      if ((h.cycleCapacity ?? hubHourlyCapacity()) > 0) h.cashboxCycles++;
       h.nextCycleAt += HUB_CYCLE_MS;
       changed = completeHubUpgrade(h, h.nextCycleAt - HUB_CYCLE_MS) || changed;
-      h.cycleCapacity = hubHourlyCapacity();
-      h.cycleSalesLevel = h.salesLevel;
+      beginHubCycle(h);
       changed = true;
-      if (!hubTrucks().length) {
-        h.nextCycleAt = now + HUB_CYCLE_MS;
+      if (!h.cycleCapacity) {
+        h.nextCycleAt += Math.floor((now - h.nextCycleAt) / HUB_CYCLE_MS + 1) * HUB_CYCLE_MS;
         break;
       }
     }
+    if (h.nextCycleAt <= now && h.cashboxCycles >= HUB_CASHBOX_CYCLES) {
+      h.nextCycleAt += Math.floor((now - h.nextCycleAt) / HUB_CYCLE_MS + 1) * HUB_CYCLE_MS;
+      changed = completeHubUpgrade(h, now) || changed;
+      beginHubCycle(h);
+      changed = true;
+    }
+    changed = accrueHubCycle(h, now) || changed;
     changed = completeHubUpgrade(h, now) || changed;
     if (changed) save();
     return changed;
@@ -705,7 +806,7 @@
   function buyHub() {
     if (hub() || !game.startCity || game.coins < HUB_PRICE) return;
     game.coins = round2(game.coins - HUB_PRICE);
-    game.hubs.push({ id: 'city-hub', nextCycleAt: Date.now() + HUB_CYCLE_MS, cycleCapacity: 0, cycleSalesLevel: 0, salesLevel: 0, construction: null, cashboxCoins: 0, cashboxHints: 0, cashboxCycles: 0, totalTons: 0 });
+    game.hubs.push({ id: 'city-hub', nextCycleAt: Date.now() + HUB_CYCLE_MS, cycleCapacity: 0, cycleSalesLevel: 0, cycleHintTotal: 0, cyclePaidCoins: 0, cyclePaidHints: 0, cyclePaidTons: 0, salesLevel: 0, construction: null, cashboxCoins: 0, cashboxHints: 0, cashboxCycles: 0, totalTons: 0 });
     addEvent(`Stadthub in ${startCityById(game.startCity).city} eröffnet.`);
     save(); render(); showToast('Stadthub eröffnet.');
   }
@@ -716,22 +817,22 @@
     settleHub(Date.now());
     const wasEmpty = hubTrucks().length === 0;
     truck.hubAssigned = !truck.hubAssigned;
-    if (wasEmpty && truck.hubAssigned) { h.nextCycleAt = Date.now() + HUB_CYCLE_MS; h.cycleCapacity = hubHourlyCapacity(); h.cycleSalesLevel = h.salesLevel; }
+    if (truck.hubAssigned) truck.hubToursInCycle = Math.floor(clamp((Date.now() - (h.nextCycleAt - HUB_CYCLE_MS)) / (HUB_WORK_SECONDS * 1000), 0, 1) * HUB_WORK_SECONDS / hubTripSeconds(truck));
+    if (wasEmpty && truck.hubAssigned) { h.nextCycleAt = Date.now() + HUB_CYCLE_MS; beginHubCycle(h); }
     addEvent(`${truck.id} ${truck.hubAssigned ? 'dem Stadthub zugeteilt' : 'aus dem Stadthub entfernt'}.`);
     save(); render();
   }
   function collectHub() {
     const h = hub();
-    if (!h || (!h.cashboxCoins && !h.cashboxHints)) return;
+    if (!h) return;
     settleHub(Date.now());
+    if (!h.cashboxCoins && !h.cashboxHints) return;
     game.coins = round2(game.coins + h.cashboxCoins);
     game.stats.hubRevenue = round2((game.stats.hubRevenue || 0) + h.cashboxCoins);
     game.inventory.pickupHints += h.cashboxHints;
     h.totalCollected = round2((h.totalCollected || 0) + h.cashboxCoins);
     addEvent(`Stadthub: ${money(h.cashboxCoins)} M und ${h.cashboxHints} Abholhinweise abgeholt.`);
     h.cashboxCoins = 0; h.cashboxHints = 0; h.cashboxCycles = 0;
-    h.nextCycleAt = Date.now() + HUB_CYCLE_MS;
-    h.cycleCapacity = hubHourlyCapacity(); h.cycleSalesLevel = h.salesLevel;
     save(); render(); showToast('Hub-Ertrag abgeholt.');
   }
   function startHubUpgrade() {
@@ -742,7 +843,8 @@
     if (game.inventory.supplierContacts < cost) return;
     settleHub(Date.now());
     game.inventory.supplierContacts -= cost;
-    h.construction = { level, startedAt: Date.now(), finishAt: Date.now() + level * 12 * HUB_CYCLE_MS };
+    const startedAt = Date.now();
+    h.construction = { level, startedAt, finishAt: startedAt + level * 12 * HUB_CYCLE_MS };
     addEvent(`Stadthub: Vertrieb Stufe ${level} im Ausbau (${level * 12} Stunden).`);
     save(); render(); showToast('Ausbau gestartet.');
   }
@@ -781,8 +883,8 @@
     const low = Math.min(...costs), high = Math.max(...costs);
     return `${rateMoney(low)}${low === high ? '' : `–${rateMoney(high)}`} M/km`;
   }
-  function offerLimit(categoryId) { const company = companyFor(); return OFFERS_PER_CATEGORY + (company.departments.dispatch ? company.offerLevels[categoryId] || 0 : 0); }
-  function offerUpgradeCost(categoryId) { return 500 * ((companyFor().offerLevels[categoryId] || 0) + 1); }
+  function offerLimit() { const company = companyFor(); return BASE_OFFERS + (company.departments.dispatch ? company.offerLevel || 0 : 0); }
+  function offerUpgradeCost() { return 500 * ((companyFor().offerLevel || 0) + 1); }
   function workshopUpgradeCost() { return 100 * Math.ceil((companyFor().workshopLevel + 1) / 5); }
   function salesUpgradeCost() { return 500 * (companyFor().salesLevel + 1); }
   function pinnedOrders() { return game.orders.filter(order => order.status === 'available' && order.pinned); }
@@ -824,19 +926,18 @@
     addEvent(`Werkstatt Stufe ${companyFor().workshopLevel}: −${rateMoney(companyFor().workshopLevel * .001)} M/km für jeden LKW.`);
     save(); render(); showToast(`Werkstatt-Rabatt: ${rateMoney(companyFor().workshopLevel * .001)} M/km.`);
   }
-  function upgradeOfferLimit(categoryId) {
-    const category = CATEGORIES.find(item => item.id === categoryId);
-    if (!category || categoryId === 'city' || !companyFor().departments.dispatch) return;
-    const currentLevel = companyFor().offerLevels[categoryId] || 0;
+  function upgradeOfferLimit() {
+    if (!companyFor().departments.dispatch) return;
+    const currentLevel = companyFor().offerLevel || 0;
     if (currentLevel >= MAX_OFFER_LEVEL) return;
-    const cost = offerUpgradeCost(categoryId);
+    const cost = offerUpgradeCost();
     if (game.coins < cost) return;
     game.coins = round2(game.coins - cost);
     game.stats.offerUpgradeSpent += cost;
-    companyFor().offerLevels[categoryId] = currentLevel + 1;
+    companyFor().offerLevel = currentLevel + 1;
     replenishOrders();
-    addEvent(`Disposition ${category.label}: Stufe ${currentLevel + 1} · ${offerLimit(categoryId)} verfügbare Aufträge.`);
-    save(); render(); showToast(`${category.label}: Jetzt ${offerLimit(categoryId)} verfügbare Aufträge.`);
+    addEvent(`Disposition: Stufe ${currentLevel + 1} · ${offerLimit()} verfügbare Aufträge.`);
+    save(); render(); showToast(`Jetzt ${offerLimit()} verfügbare Aufträge.`);
   }
   function freeTrucks() { return game.trucks.filter(t => !t.hubAssigned && !game.orders.some(o => o.status === 'active' && o.truckId === t.id)); }
   function customerById(id) { return CUSTOMERS.find(c => c.id === id); }
@@ -900,24 +1001,96 @@
     const current = truckRarity(truck);
     return current.total >= MAX_RARITY_LEVEL ? Infinity : RANK_GEAR_COSTS[current.id][current.level];
   }
+  function saleGearRefund(truck) {
+    const refund = {};
+    RARITIES.forEach((rarity, index) => {
+      const levels = Math.max(0, Math.min(10, (truck.rarityLevel || 0) - index * 10));
+      const invested = RANK_GEAR_COSTS[rarity.id].slice(0, levels).reduce((sum, cost) => sum + cost, 0);
+      refund[rarity.id] = Math.floor(invested / 2);
+    });
+    return refund;
+  }
+  function saleQuote(truck) {
+    const km = Math.max(0, Number(truck.kmDriven) || 0);
+    const rate = .95 - .8 * Math.min(km, 500000) / 500000;
+    const price = Number.isFinite(truck.purchasePrice) ? truck.purchasePrice : TRUCKS[truck.tier].price;
+    return { coins: round2(price * rate), gears: saleGearRefund(truck), modulesLost: [0, 1, 4][truck.moduleCapacityLevel || 0] || 0 };
+  }
+  function saleBlockReason(truck) {
+    if (!truck) return 'Fahrzeug nicht gefunden.';
+    if (game.orders.some(order => order.status === 'active' && order.truckId === truck.id)) return 'Ein laufender Auftrag muss zuerst abgeschlossen werden.';
+    if (truck.tier >= 2 && regularTruckCount() <= 1) return 'Mindestens ein regulärer Auftrags-LKW muss bleiben.';
+    return null;
+  }
+  function openSaleDialog(truckId) {
+    const truck = truckById(truckId);
+    const reason = saleBlockReason(truck);
+    if (reason) { showToast(reason); return false; }
+    if (truck.hubAssigned) settleHub(Date.now());
+    const quote = saleQuote(truck);
+    pendingSaleTruckId = truckId;
+    pendingSaleQuote = quote;
+    $('#sale-dialog-title').textContent = `${truck.model} · ${truck.id} verkaufen?`;
+    $('#sale-dialog-content').innerHTML = `<p>Dieser Verkauf entfernt das Fahrzeug endgültig und gibt seinen Fahrzeugplatz frei.</p><div class="sale-summary"><div><span>Münzerlös</span><strong>+${money(quote.coins)} M</strong></div>${RARITIES.map(rarity => `<div><span>${rarity.label}-Zahnräder</span><strong>+${integer(quote.gears[rarity.id])}</strong></div>`).join('')}<div><span>Kapazitätsmodule verloren</span><strong>${integer(quote.modulesLost)}</strong></div></div><p>Die Zahnrad-Rückgabe beträgt 50 % der je Seltenheit insgesamt investierten Zahnräder, auf ganze Zahnräder abgerundet. Rang und Ausbauten gehen verloren.</p>`;
+    $('#truck-dialog').close();
+    $('#sale-dialog').showModal();
+    return true;
+  }
+  function confirmSale() {
+    const truck = truckById(pendingSaleTruckId);
+    if (saleBlockReason(truck)) { $('#sale-dialog').close(); return false; }
+    if (truck.hubAssigned) settleHub(Date.now());
+    const quote = saleQuote(truck);
+    if (JSON.stringify(quote) !== JSON.stringify(pendingSaleQuote)) {
+      pendingSaleQuote = quote;
+      $('#sale-dialog-content').innerHTML = `<p>Die Fahrleistung hat sich seit der Vorschau geändert. Bitte den aktualisierten Verkauf erneut öffnen.</p>`;
+      $('#sale-dialog').close();
+      showToast('Fahrzeugdaten geändert. Verkaufsvorschau bitte erneut öffnen.');
+      return false;
+    }
+    game.coins = round2(game.coins + quote.coins);
+    for (const rarity of RARITIES) game.inventory.gears[rarity.id] += quote.gears[rarity.id];
+    game.trucks.splice(game.trucks.indexOf(truck), 1);
+    if (truck.hubAssigned) {
+      const h = hub();
+      h.nextCycleAt = Date.now() + HUB_CYCLE_MS;
+      beginHubCycle(h);
+    }
+    addEvent(`${truck.model} (${truck.id}) für ${money(quote.coins)} M verkauft.`);
+    pendingSaleTruckId = null;
+    pendingSaleQuote = null;
+    $('#sale-dialog').close();
+    save(); render(); showToast(`${truck.model} verkauft.`);
+    return true;
+  }
   function rewardGearRows(reward) {
     return RARITIES.map(rarity => ({ rarity, count: reward.gears?.[rarity.id] || 0 })).filter(row => row.count > 0);
   }
   function rollGearLoot(order) {
     if (order.kind === 'private') return {};
-    const table = GEAR_LOOT[order.kind === 'referral' ? 'referral' : order.kind === 'special' ? 'special' : order.customer ? 'customer' : order.category === 'city' ? 'city' : 'normal'];
     const gears = {};
-    for (const rarity of RARITIES) {
-      const rule = table[rarity.id];
-      if (!rule) continue;
-      let amount = 0;
-      if (rarity.id === 'common') amount = random(rule[0], rule[1]);
-      else if (rarity.id === 'legendary') amount = rule[0] + (Math.random() < rule[2] ? 1 : 0);
-      else if (Math.random() < rule[0]) amount = random(rule[1], rule[2]);
-      if (rarity.id === 'common' && order.category === 'international') amount = Math.round(amount * INTERNATIONAL_COMMON_MULTIPLIER);
-      if (amount) gears[rarity.id] = amount;
+    const tonKm = Math.max(0, order.distance * order.volume);
+    const rollBlocks = (size, chances) => {
+      const full = Math.floor(tonKm / size);
+      const remainder = tonKm % size;
+      let total = 0;
+      for (let i = 0; i < full + (remainder > 0 ? 1 : 0); i++) {
+        if (i === full && Math.random() >= remainder / size) continue;
+        const roll = Math.random();
+        if (roll < chances[0]) total++;
+        else if (roll < chances[1]) total += 2;
+      }
+      return total;
+    };
+    gears.common = rollBlocks(100, [.4, .6]);
+    gears.uncommon = rollBlocks(1000, [.18, .25]);
+    if (order.customer) gears.rare = rollBlocks(1000, [.08, .08]);
+    const table = GEAR_LOOT[order.kind];
+    if (table) {
+      if (table.epic && Math.random() < table.epic[0]) gears.epic = random(table.epic[1], table.epic[2]);
+      if (table.legendary) gears.legendary = table.legendary[0] + (Math.random() < table.legendary[2] ? 1 : 0);
     }
-    return gears;
+    return Object.fromEntries(Object.entries(gears).filter(([, amount]) => amount > 0));
   }
   function makeCompletionReward(order) {
     const rules = SPECIAL_CHANCES[order.category];
@@ -991,6 +1164,8 @@
         game.stats.trips++;
         game.stats.tons += loadedCargo;
         game.stats.km += order.distance * drivenLegs(order);
+        truck.kmDriven = (truck.kmDriven || 0) + order.distance * drivenLegs(order);
+        truck.toursCompleted = (truck.toursCompleted || 0) + 1;
         game.stats.tonKm += loadedCargo * order.distance;
         game.stats.grossRevenue = round2(game.stats.grossRevenue + revenue);
         game.stats.operatingCosts = round2(game.stats.operatingCosts + cost);
@@ -1015,6 +1190,7 @@
           if (rules && order.customer && order.kind === 'normal' && Math.random() < customerTripChance(order, 'award')) queueCustomerTrip(order, 'special');
           if (rules && order.customer && order.kind === 'special' && Math.random() < customerTripChance(order, 'referral')) queueCustomerTrip(order, 'referral');
           game.completed++;
+          truck.ordersCompleted = (truck.ordersCompleted || 0) + 1;
           addEvent(`${order.cargo} nach ${order.to} geliefert · ${order.volume} t abgeschlossen.`);
           showToast(`Auftrag ${order.id} abgeschlossen! LKW ist wieder frei.`);
         }
@@ -1084,17 +1260,14 @@
 
   function replenishOrders() {
     if (!game.startCity) return;
-    const level = levelForXp(game.xp).level;
     game.orders = game.orders.filter(order => order.status !== 'available' || order.category !== 'city');
-    for (const category of CATEGORIES.filter(item => item.id !== 'city')) {
-      const available = () => game.orders.filter(o => o.status === 'available' && o.category === category.id);
-      while (available().length > offerLimit(category.id)) {
-        const excess = available();
-        const removable = excess.find(o => !o.pinned && o.id !== 'A-0001') || excess.find(o => !o.pinned) || excess[0];
-        game.orders = game.orders.filter(o => o !== removable);
-      }
-      while (available().length < offerLimit(category.id)) game.orders.push(createOrder(game.nextOrder++, { level, category: category.id }));
+    const available = () => game.orders.filter(o => o.status === 'available' && o.category !== 'city');
+    while (available().length > offerLimit()) {
+      const excess = available();
+      const removable = excess.find(o => !o.pinned) || excess[0];
+      game.orders = game.orders.filter(o => o !== removable);
     }
+    while (available().length < offerLimit()) game.orders.push(createOrder(game.nextOrder++, { category: randomCategory() }));
   }
   function replaceAvailableOffers(categories) {
     game.orders = game.orders.filter(order => order.status !== 'available' || !categories.includes(order.category) || order.pinned);
@@ -1104,15 +1277,14 @@
   function manualRefreshCost() {
     return MANUAL_REFRESH_BASE_COST * Math.max(1, game.trucks.length) * (1 + game.manualRefreshCount);
   }
-  function manualRefreshOrders(category) {
-    if (!['national', 'international'].includes(category)) return false;
+  function manualRefreshOrders() {
     const cost = manualRefreshCost();
     if (game.coins < cost) return false;
-    replaceAvailableOffers([category]);
+    replaceAvailableOffers(['national', 'international']);
     game.coins = round2(game.coins - cost);
     game.stats.manualRefreshSpent += cost;
     game.manualRefreshCount++;
-    addEvent(`Angebote für ${categoryById(category).label} manuell erneuert (−${money(cost)} M).`);
+    addEvent(`Auftragsbörse manuell erneuert (−${money(cost)} M).`);
     save();
     return true;
   }
@@ -1133,11 +1305,15 @@
     if (modelIndex <= 1 && !hub()) { showToast('Eröffne zuerst den Stadthub.'); return; }
     if (modelIndex <= 1 ? cityTruckCount() >= hubCapacity() : regularTruckCount() >= dispatchCapacity()) { showToast('Das Fahrzeuglimit ist erreicht.'); return; }
     if (!model || game.coins < model.price) return;
-    const truck = { id: `LKW-${String(game.nextTruck++).padStart(2, '0')}`, tier: modelIndex, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, hubAssigned: modelIndex <= 1 };
+    const truck = { id: `LKW-${String(game.nextTruck++).padStart(2, '0')}`, tier: modelIndex, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, hubAssigned: modelIndex <= 1, purchasePrice: model.price, kmDriven: 0, toursCompleted: 0, ordersCompleted: 0 };
     if (modelIndex <= 1) settleHub(Date.now());
     const wasEmpty = modelIndex <= 1 && hubTrucks().length === 0;
     game.coins = round2(game.coins - model.price); game.trucks.push(truck);
-    if (wasEmpty) { const h = hub(); h.nextCycleAt = Date.now() + HUB_CYCLE_MS; h.cycleCapacity = hubHourlyCapacity(); h.cycleSalesLevel = h.salesLevel; }
+    if (modelIndex <= 1 && !wasEmpty) {
+      const h = hub();
+      truck.hubToursInCycle = Math.floor(clamp((Date.now() - (h.nextCycleAt - HUB_CYCLE_MS)) / (HUB_WORK_SECONDS * 1000), 0, 1) * HUB_WORK_SECONDS / hubTripSeconds(truck));
+    }
+    if (wasEmpty) { const h = hub(); h.nextCycleAt = Date.now() + HUB_CYCLE_MS; beginHubCycle(h); }
     game.stats.truckSpent += model.price;
     addEvent(`${truck.model} (${truck.id}) gekauft.`); save(); render(); showToast(`${truck.model} gekauft.`);
   }
@@ -1197,7 +1373,6 @@
     const category = CATEGORIES.find(item => item.id === categoryId);
     if (!category) return;
     if (!freeTrucks().some(truck => category.tiers.includes(truck.tier))) return;
-    categoryFilter = categoryId;
     setView('orders');
   }
   function orderCustomer(order) { return order.customer ? customerById(order.customer).name : 'Freie Frachtbörse'; }
@@ -1228,7 +1403,7 @@
     $('#hub-dashboard-timer-label').textContent = !h ? 'Noch nicht eröffnet' : fullIn === 0 ? 'Kassenbestand voll' : fullIn === null ? 'Keine Stadttransporter im Hub' : 'Voll in';
     $('#hub-dashboard-timer').textContent = fullIn === null ? '–' : countdown(fullIn);
     $('#hub-dashboard-collect').hidden = !h;
-    $('#hub-dashboard-collect').disabled = !h || !h.cashboxCycles;
+    $('#hub-dashboard-collect').disabled = !h || !h.cashboxCoins && !h.cashboxHints;
     $('#hub-dashboard-open').hidden = !!h;
     const busyTruckIds = new Set(game.orders.filter(order => order.status === 'active').map(order => order.truckId));
     const idleTrucks = game.trucks.filter(truck => !busyTruckIds.has(truck.id) && !truck.hubAssigned);
@@ -1253,9 +1428,27 @@
     }
   }
   function renderInventory() {
-    const gears = RARITIES;
     const privateTrips = game.orders.filter(order => order.kind === 'private' && ['queued', 'active'].includes(order.status));
-    $('#inventory-content').innerHTML = `<div class="inventory-items"><div class="inventory-section-title">Stadthub</div><div class="inventory-gear-grid"><article class="inventory-gear"><span class="inventory-gear-icon">⌖</span><div><strong>Abholhinweise</strong><small>100 Hinweise ergeben eine Privatabholung</small></div><span class="inventory-gear-count">${integer(game.inventory.pickupHints || 0)}</span></article><article class="inventory-gear"><span class="inventory-gear-icon">◈</span><div><strong>Lieferantenkontakte</strong><small>Material für den Vertriebsausbau im Hub</small></div><span class="inventory-gear-count">${integer(game.inventory.supplierContacts || 0)}</span></article></div><button class="button button-primary hub-combine-button" data-combine-hints ${game.inventory.pickupHints < PRIVATE_PICKUP_HINT_COST ? 'disabled' : ''}>100 Hinweise kombinieren</button><div class="inventory-section-title">Privatabholungen</div>${privateTrips.length ? privateTrips.map(order => `<article class="special-trip-row"><div><strong>${order.id} · ${order.from} → ${order.to}</strong><small>${tons(order.volume)} t · ${order.distance} km · ${order.status === 'active' ? `LKW ${order.truckId} · ${Math.round(progress(order))} %` : 'Bereit'}</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-private="${order.id}">Durchführen</button>` : '<span class="pill pill-green">UNTERWEGS</span>'}</article>`).join('') : '<p>Noch keine Privatabholung vorhanden.</p>'}<div class="inventory-section-title">Kapazitätsmodule</div><div class="inventory-gear-grid"><article class="inventory-gear"><span class="inventory-gear-icon">▣</span><div><strong>Kapazitätsmodul</strong><small>Erhöht in der Garage die Kapazität eines LKW um 1 t</small></div><span class="inventory-gear-count">${integer(game.inventory.capacityModules || 0)}</span></article></div><div class="inventory-section-title">Zahnräder</div><div class="inventory-gear-grid">${gears.map(rarity => `<article class="inventory-gear rarity-${rarity.id}"><span class="inventory-gear-icon">⚙</span><div><strong>${rarity.label}-Zahnrad</strong><small>Für Fahrzeugränge</small></div><span class="inventory-gear-count">${integer(game.inventory.gears[rarity.id])}</span></article>`).join('')}</div></div>`;
+    const materials = [
+      { name: 'Abholhinweise', icon: '⌖', amount: game.inventory.pickupHints || 0, detail: 'Material für Privatabholungen' },
+      { name: 'Lieferantenkontakte', icon: '◈', amount: game.inventory.supplierContacts || 0, detail: 'Material für den Stadthub' },
+      { name: 'Kapazitätsmodule', icon: '▣', amount: game.inventory.capacityModules || 0, detail: 'Für LKW in der Garage' }
+    ].filter(item => item.amount > 0);
+    const gears = RARITIES.map(rarity => ({
+      name: `${rarity.label}-Zahnrad`, icon: '⚙', amount: game.inventory.gears[rarity.id] || 0,
+      detail: 'Für Fahrzeugränge', rarity: rarity.id
+    })).filter(item => item.amount > 0);
+    const itemCard = item => `<article class="inventory-item ${item.rarity ? `rarity-${item.rarity}` : ''}"><span class="inventory-item-count" aria-label="Anzahl ${integer(item.amount)}">${integer(item.amount)}</span><span class="inventory-item-icon" aria-hidden="true">${item.icon}</span><div class="inventory-item-info"><strong>${item.name}</strong><small>${item.detail}</small></div></article>`;
+    const section = (title, cards) => cards.length ? `<section class="inventory-section"><h2 class="inventory-section-title">${title}</h2><div class="inventory-item-grid">${cards.join('')}</div></section>` : '';
+    const tripCards = privateTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">⌖</span><div class="inventory-item-info"><strong>Privatabholung</strong><small>${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-private="${order.id}">LKW zuweisen</button>` : ''}</article>`);
+    const content = section('Materialien', materials.map(itemCard))
+      + section('Zahnräder', gears.map(itemCard))
+      + section('Privatabholungen', tripCards);
+    $('#inventory-content').innerHTML = content || '<div class="inventory-empty"><span class="inventory-empty-icon">▣</span><h2>Deine Vorräte sind leer</h2><p>Gesammelte Materialien und hergestellte Aufträge erscheinen hier.</p></div>';
+  }
+  function renderDevelopment() {
+    const hints = game.inventory.pickupHints || 0;
+    $('#development-content').innerHTML = `<section class="panel development-section"><div class="section-head"><h2>Herstellungen</h2></div><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">⌖</span><div><h3>Privatabholung</h3><p>Stelle aus Abholhinweisen einen Auftrag her. Der fertige Auftrag erscheint in den Vorräten und kann dort einem LKW zugewiesen werden.</p></div></div><div class="development-recipe-action"><span class="development-material">Abholhinweise <strong>${integer(hints)} / ${PRIVATE_PICKUP_HINT_COST}</strong></span><button type="button" class="button button-primary" data-combine-hints ${hints < PRIVATE_PICKUP_HINT_COST ? 'disabled' : ''}>Privatabholung herstellen</button></div></article></section>`;
   }
   function renderHub() {
     const el = $('#hub-content');
@@ -1272,7 +1465,7 @@
     const phase = h.cashboxCycles >= HUB_CASHBOX_CYCLES ? 'Kassenbestand voll · bitte abholen' : cycleSeconds > 15 * 60 ? 'Verteilung läuft' : 'Pause bis zum nächsten Einkauf';
     const nextLevel = h.salesLevel + 1;
     const cost = hubUpgradeContactCost(nextLevel);
-    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung.</p><button class="button button-primary" data-collect-hub ${h.cashboxCycles ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, vorhanden ${game.inventory.supplierContacts}. Keine Münzkosten.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
+    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung. Während der 45 Arbeitsminuten wachsen Kasse und Hinweise laufend.</p><button class="button button-primary" data-collect-hub ${h.cashboxCoins || h.cashboxHints ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, vorhanden ${game.inventory.supplierContacts}. Keine Münzkosten.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
   }
   function renderSpecialTrips() {
     const el = $('#special-content');
@@ -1302,9 +1495,8 @@
     const refreshCost = manualRefreshCost();
     refreshButton.disabled = game.coins < refreshCost;
     refreshButton.textContent = `↻ Neue Angebote · ${money(refreshCost)} M`;
-    refreshButton.title = game.coins < refreshCost ? `${money(refreshCost)} Münzen erforderlich` : `Verfügbare Angebote für ${categoryById(categoryFilter).label} erneuern`;
-    $('#category-filters').innerHTML = CATEGORIES.filter(c => c.id !== 'city').map(c => `<button class="category-filter ${categoryFilter === c.id ? 'active' : ''}" data-category="${c.id}">${c.label}</button>`).join('');
-    const orders = game.orders.filter(o => o.status === 'available' && o.category === categoryFilter).sort((a, b) => a.createdAt - b.createdAt);
+    refreshButton.title = game.coins < refreshCost ? `${money(refreshCost)} Münzen erforderlich` : 'Alle verfügbaren Angebote erneuern';
+    const orders = game.orders.filter(o => o.status === 'available' && o.category !== 'city').sort((a, b) => a.createdAt - b.createdAt);
     $('#orders-list').innerHTML = orders.length ? orders.map(o => {
       const freight = freightRevenue(o);
       const eligible = eligibleFreeTrucks(o);
@@ -1314,7 +1506,7 @@
       const route = o.category === 'city' ? (startCityById(o.homeCity)?.city || o.from.split(' ')[0]) : `${o.from} → ${o.to}`;
       const customer = o.customer ? `<span class="order-customer-badge">★ ${customerById(o.customer).name}</span>` : '';
       const routeBadge = hasReturnLeg(o) ? `<span class="order-route-badge ${o.routeType === 'dual' ? 'order-route-dual' : ''}">${routeTypeLabel(o)}</span>` : '';
-      return `<article class="order-card ${o.pinned ? 'order-pinned' : ''} ${o.customer ? 'order-client rarity-uncommon' : ''}"><div class="order-main"><div class="order-name">${o.icon} ${o.cargo} · ${route}</div><div class="order-customer">${customer}${routeBadge}<span class="order-id">${o.id}</span></div></div><div class="order-distance"><div class="order-stat-label">${hasReturnLeg(o) ? 'EINFACHE STRECKE' : 'STRECKE'}</div><div class="order-stat-value">${o.distance} km</div></div><div class="order-volume"><div class="order-stat-label">${o.routeType === 'dual' ? 'VOLUMEN JE RICHTUNG' : 'VOLUMEN'}</div><div class="order-stat-value">${o.volume} t</div></div><div class="order-profit"><div class="order-stat-label">FRACHTVERGÜTUNG</div><div class="order-stat-value">${money(freight)} M</div></div><div class="order-actions">${action}${pinAction}</div></article>`;
+      return `<article class="order-card ${o.pinned ? 'order-pinned' : ''} ${o.customer ? 'order-client rarity-uncommon' : ''}"><div class="order-main"><div class="order-name">${o.icon} ${o.cargo} · ${route}</div><div class="order-customer"><span class="pill pill-gray">${categoryById(o.category).label}</span>${customer}${routeBadge}<span class="order-id">${o.id}</span></div></div><div class="order-distance"><div class="order-stat-label">${hasReturnLeg(o) ? 'EINFACHE STRECKE' : 'STRECKE'}</div><div class="order-stat-value">${o.distance} km</div></div><div class="order-volume"><div class="order-stat-label">${o.routeType === 'dual' ? 'VOLUMEN JE RICHTUNG' : 'VOLUMEN'}</div><div class="order-stat-value">${o.volume} t</div></div><div class="order-profit"><div class="order-stat-label">FRACHTVERGÜTUNG</div><div class="order-stat-value">${money(freight)} M</div></div><div class="order-actions">${action}${pinAction}</div></article>`;
     }).join('') : `<div class="empty-state"><div class="empty-icon">▤</div><h3>Hier ist gerade nichts</h3><p>Neue Aufträge erscheinen nach abgeschlossenen Lieferungen.</p></div>`;
   }
   function fleetTable(trucks, title) {
@@ -1327,7 +1519,7 @@
   function renderFleet() {
     const trucks = trucksAt();
     $('#fleet-summary-text').textContent = `${regularTruckCount()} / ${dispatchCapacity()} reguläre LKW · ${cityTruckCount()} / ${hubCapacity()} Stadttransporter`;
-    $('#fleet-list').innerHTML = fleetTable(trucks.filter(truck => truck.tier >= 2), 'Landesweit & International') + fleetTable(trucks.filter(truck => truck.tier <= 1), 'Stadthub');
+    $('#fleet-list').innerHTML = fleetTable(trucks.filter(truck => truck.tier >= 2), 'Reguläre LKW') + fleetTable(trucks.filter(truck => truck.tier <= 1), 'Stadthub');
     if ($('#truck-dialog').open) renderTruckDialog();
   }
   function renderDealer() {
@@ -1337,7 +1529,8 @@
       const label = i <= 1 && !hub() ? 'Erst Stadthub eröffnen' : full ? 'Fahrzeuglimit erreicht' : game.coins < t.price ? 'Zu wenig Münzen' : 'LKW kaufen';
       return `<article class="shop-card"><div class="truck-visual">${t.symbol}</div><h3>${t.model}</h3><p>${t.description}</p><div class="truck-details"><span>Kapazität</span><strong>${tons(t.capacity)} t / Tour</strong></div><div class="truck-details"><span>Tempo leer / voll</span><strong>${speedLabel(truckSpeed(t))} / ${speedLabel(truckSpeed(t, t.capacity))}</strong></div><div class="truck-details"><span>Fahrzeugpreis</span><strong>${rateMoney(operatingCostPerKm({ tier: i }))} M/km</strong></div><div class="truck-details"><span>Einsatz</span><strong>${i <= 1 ? 'Stadthub' : CATEGORIES.filter(c => c.id !== 'city' && c.tiers.includes(i)).map(c => c.label).join(' + ')}</strong></div><div class="shop-price">${money(t.price)} <small>Münzen</small></div><button class="button button-primary" data-buy="${i}" ${full || game.coins < t.price || i <= 1 && !hub() ? 'disabled' : ''}>${label}</button></article>`;
     });
-    $('#shop-list').innerHTML = `<section class="dealer-section"><div class="fleet-section-heading"><h2>Stadttransporter</h2></div><div class="shop-grid">${cards.slice(0, 2).join('')}</div></section><section class="dealer-section"><div class="fleet-section-heading"><h2>Langstreckentransporter</h2></div><div class="shop-grid">${cards.slice(2).join('')}</div></section>`;
+    const regularCards = TRUCKS.map((truck, tier) => ({ truck, tier })).filter(({ tier }) => tier >= 2).sort((a, b) => a.truck.capacity - b.truck.capacity).map(({ tier }) => cards[tier]);
+    $('#shop-list').innerHTML = `<section class="dealer-section"><div class="fleet-section-heading"><h2>Stadttransporter</h2></div><div class="shop-grid">${cards.slice(0, 2).join('')}</div></section><section class="dealer-section"><div class="fleet-section-heading"><h2>Langstreckentransporter</h2></div><div class="shop-grid">${regularCards.join('')}</div></section>`;
   }
   function renderTruckDialog() {
     const truck = game.trucks.find(t => t.id === selectedTruckId);
@@ -1354,6 +1547,8 @@
     const capacityLevel = truck.moduleCapacityLevel || 0;
     const moduleCost = capacityLevel === 0 ? 1 : 3;
     $('#truck-dialog-content').insertAdjacentHTML('beforeend', `<div class="truck-capacity-panel"><h3>Kapazität ausbauen</h3><p>${tons(truck.capacity)} t · ${capacityLevel} / 2 Ausbauten · ${game.inventory.capacityModules || 0} Kapazitätsmodule vorhanden</p><button type="button" class="button button-primary" data-upgrade-capacity="${truck.id}" ${capacityLevel >= 2 || (game.inventory.capacityModules || 0) < moduleCost ? 'disabled' : ''}>${capacityLevel >= 2 ? 'Maximale Kapazität erreicht' : `+1 t · ${moduleCost} ${moduleCost === 1 ? 'Modul' : 'Module'}`}</button></div>`);
+    const blocked = saleBlockReason(truck);
+    $('#truck-dialog-content').insertAdjacentHTML('beforeend', `<div class="truck-sale-panel"><div class="truck-dialog-facts"><div><span>Gefahrene Kilometer</span><strong>${integer(truck.kmDriven || 0)} km</strong></div><div><span>Touren / Aufträge abgeschlossen</span><strong>${integer(truck.toursCompleted || 0)} / ${integer(truck.ordersCompleted || 0)}</strong></div></div>${truck.historyReconstructed ? '<p>Älterer Spielstand: Fahrten aus vorhandenen Aufträgen rekonstruiert. Frühere Fahrten können fehlen.</p>' : ''}<button type="button" class="button button-outline" data-open-sale="${truck.id}" ${blocked ? 'disabled' : ''}>Fahrzeug verkaufen</button>${blocked ? `<p>${blocked}</p>` : ''}</div>`);
   }
   function openTruckDialog(truckId) {
     if (!game.trucks.some(t => t.id === truckId)) return;
@@ -1434,13 +1629,11 @@
     $('#hr-upgrades').hidden = selectedDepartmentId !== 'hr' || !companyFor().departments.hr;
     $('#dispatch-upgrades').hidden = selectedDepartmentId !== 'dispatch' || !companyFor().departments.dispatch;
     if (companyFor().departments.dispatch) {
-      $('#dispatch-upgrade-list').innerHTML = CATEGORIES.filter(category => category.id !== 'city').map(category => {
-      const currentLevel = companyFor().offerLevels[category.id] || 0;
+      const currentLevel = companyFor().offerLevel || 0;
       const maxed = currentLevel >= MAX_OFFER_LEVEL;
-      const cost = maxed ? 0 : offerUpgradeCost(category.id);
+      const cost = maxed ? 0 : offerUpgradeCost();
       const label = maxed ? 'Maximal ausgebaut' : game.coins < cost ? `Zu wenig Münzen · ${money(cost)} M` : `Ausbauen · ${money(cost)} M`;
-      return `<article class="offer-upgrade-card"><div class="department-card-head"><h3>${category.label}</h3><span class="pill ${maxed ? 'pill-green' : 'pill-gray'}">Stufe ${currentLevel} / ${MAX_OFFER_LEVEL}</span></div><p>${offerLimit(category.id)} verfügbare Aufträge${maxed ? ' · Maximum erreicht' : ' · nächste Stufe +1'}</p><div class="upgrade-pips">${Array.from({ length: MAX_OFFER_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < currentLevel ? 'filled' : ''}"></span>`).join('')}</div><button class="button button-primary" data-upgrade-offers="${category.id}" ${maxed || game.coins < cost ? 'disabled' : ''}>${label}</button></article>`;
-      }).join('');
+      $('#dispatch-upgrade-list').innerHTML = `<article class="offer-upgrade-card"><div class="department-card-head"><h3>Auftragsbörse</h3><span class="pill ${maxed ? 'pill-green' : 'pill-gray'}">Stufe ${currentLevel} / ${MAX_OFFER_LEVEL}</span></div><p>${offerLimit()} verfügbare Aufträge insgesamt${maxed ? ' · Maximum erreicht' : ' · nächste Stufe +1'}</p><div class="upgrade-pips">${Array.from({ length: MAX_OFFER_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < currentLevel ? 'filled' : ''}"></span>`).join('')}</div><button class="button button-primary" data-upgrade-offers="all" ${maxed || game.coins < cost ? 'disabled' : ''}>${label}</button></article>`;
     }
     $('#workshop-upgrades').hidden = selectedDepartmentId !== 'workshop' || !companyFor().departments.workshop;
     if (companyFor().departments.workshop) {
@@ -1495,6 +1688,7 @@
     if (currentView === 'fleet') renderFleet();
     if (currentView === 'dealer') renderDealer();
     if (currentView === 'inventory') renderInventory();
+    if (currentView === 'development') renderDevelopment();
     if (currentView === 'company') renderCompany();
     if (currentView === 'statistics') renderStatistics();
     if (currentView === 'customers') renderCustomers();
@@ -1563,6 +1757,7 @@
     if (target.dataset.buy !== undefined) buyTruck(Number(target.dataset.buy));
     if (target.dataset.upgradeRarity) upgradeTruckRarity(target.dataset.upgradeRarity);
     if (target.dataset.upgradeCapacity) upgradeTruckCapacity(target.dataset.upgradeCapacity);
+    if (target.dataset.openSale) openSaleDialog(target.dataset.openSale);
     if (target.dataset.specialCustomer) { selectedSpecialCustomer = target.dataset.specialCustomer; renderSpecialTrips(); }
     if (target.dataset.specialBack !== undefined) { selectedSpecialCustomer = null; renderSpecialTrips(); }
     if (target.dataset.startTrip) openCustomerTripDialog(target.dataset.startTrip);
@@ -1580,7 +1775,6 @@
     if (target.dataset.chooseSpecial) assignCustomerTrip(target.dataset.order, target.dataset.chooseSpecial);
     if (target.dataset.choosePrivate) assignPrivatePickup(target.dataset.order, target.dataset.choosePrivate);
     if (target.dataset.claimOrder) claimOrderReward(target.dataset.claimOrder);
-    if (target.dataset.category && target.dataset.category !== 'city') { categoryFilter = target.dataset.category; renderOrders(); }
   });
   $('#fleet-list').addEventListener('click', event => {
     const row = event.target.closest('tr[data-fleet-truck]');
@@ -1595,6 +1789,10 @@
   });
   $('#close-truck-dialog').addEventListener('click', () => $('#truck-dialog').close());
   $('#truck-dialog').addEventListener('close', () => { selectedTruckId = null; });
+  $('#cancel-sale').addEventListener('click', () => $('#sale-dialog').close());
+  $('#close-sale-dialog').addEventListener('click', () => $('#sale-dialog').close());
+  $('#confirm-sale').addEventListener('click', confirmSale);
+  $('#sale-dialog').addEventListener('close', () => { pendingSaleTruckId = null; pendingSaleQuote = null; });
   $('#close-reward-dialog').addEventListener('click', () => $('#reward-dialog').close());
   $('#reward-done-button').addEventListener('click', () => $('#reward-dialog').close());
   $('#collect-all-rewards').addEventListener('click', openBulkRewardDialog);
@@ -1606,8 +1804,8 @@
   $('#close-department-dialog').addEventListener('click', () => $('#department-dialog').close());
   $('#department-dialog').addEventListener('close', () => { selectedDepartmentId = null; });
   $('#refresh-orders').addEventListener('click', () => {
-    if (!manualRefreshOrders(categoryFilter)) { showToast(`${money(manualRefreshCost())} Münzen für neue Angebote nötig.`); return; }
-    render(); showToast(`Neue Angebote für ${categoryById(categoryFilter).label} sind eingetroffen.`);
+    if (!manualRefreshOrders()) { showToast(`${money(manualRefreshCost())} Münzen für neue Angebote nötig.`); return; }
+    render(); showToast('Neue Angebote sind eingetroffen.');
   });
   $('#test-coins-button').addEventListener('click', () => {
     game.coins = round2(game.coins + TEST_COINS_GRANT);
@@ -1616,20 +1814,20 @@
   });
   $('#reset-button').addEventListener('click', () => {
     if (!confirm('Den lokalen Spielstand wirklich zurücksetzen? Alle LKW und Fortschritte gehen verloren.')) return;
-    game = newGame(); categoryFilter = 'national'; save(); setView('dashboard'); showStartDialog();
+    game = newGame(); save(); setView('dashboard'); showStartDialog();
   });
   window.addEventListener('hashchange', () => {
     const requested = location.hash.slice(1);
     const view = requested === 'garage' ? 'fleet' : requested;
-    if (['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'company', 'personnel', 'statistics', 'customers'].includes(view) && view !== currentView) setView(view);
+    if (['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'statistics', 'customers'].includes(view) && view !== currentView) setView(view);
   });
   function tick() {
     const now = Date.now();
     $('#game-clock').textContent = new Date(now).toLocaleTimeString('de-DE');
     const refreshed = autoRefreshOrders(now);
     const tripsSettled = settleTrips(now);
-    const hubSettled = settleHub(now);
-    if (tripsSettled || hubSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
+    settleHub(now);
+    if (tripsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
   }
   const requested = location.hash.slice(1);
   const requestedView = requested === 'garage' ? 'fleet' : requested;
@@ -1638,7 +1836,7 @@
   }
   replenishOrders();
   save();
-  if (game.startCity && ['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'company', 'personnel', 'statistics', 'customers'].includes(requestedView)) currentView = requestedView;
+  if (game.startCity && ['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'statistics', 'customers'].includes(requestedView)) currentView = requestedView;
   setView(currentView);
   showStartDialog();
   tick();

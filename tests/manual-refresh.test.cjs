@@ -34,7 +34,7 @@ assert.equal(api.manualRefreshCost(), 1000);
 assert.equal(state.nextAutoRefreshAt, timerBeforeManualRefresh);
 
 const reloaded = api.loadGame();
-assert.equal(reloaded.version, 35);
+assert.equal(reloaded.version, 37);
 assert.equal(reloaded.manualRefreshCount, 3);
 api.setGame(reloaded);
 assert.equal(api.manualRefreshCost(), 1000);
@@ -57,12 +57,13 @@ assert.equal(api.manualRefreshCost(), 250);
 assert.equal(api.loadGame().manualRefreshCount, 0);
 
 const oldSave = api.newGame('hamburg');
+oldSave.trucks.pop(); // Historical saves had one starter.
 oldSave.version = 28;
 delete oldSave.manualRefreshCount;
 oldSave.nextAutoRefreshAt = Date.now() + 123456;
 storage.set('frachtwerk-save-v2', JSON.stringify(oldSave));
 const upgraded = api.loadGame();
-assert.equal(upgraded.version, 35);
+assert.equal(upgraded.version, 37);
 assert.equal(upgraded.manualRefreshCount, 0);
 assert.equal(upgraded.nextAutoRefreshAt, oldSave.nextAutoRefreshAt);
 api.setGame(upgraded);

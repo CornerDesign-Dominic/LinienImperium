@@ -4,7 +4,7 @@ Diese Datei beschreibt die **aktuell implementierten Werte und Freischaltungen**
 
 ## 1. Start und Ablauf
 
-- Vor einem neuen Spielstand wählt der Spieler **einen festen Hauptsitz**. Danach beginnt er auf **Spielerlevel 1** mit **1.000 M Startguthaben**, einem kostenlosen **4-t-Allrounder** und je fünf landesweiten und internationalen Angeboten. Der erste selbst gekaufte LKW erhält die Nummer 02. Den Stadthub eröffnet man kostenlos; anschließend kann der erste Stadttransporter gekauft werden. Bestehende Spielstände behalten Guthaben, Fahrzeuge und laufende Aufträge.
+- Vor einem neuen Spielstand wählt der Spieler **einen festen Hauptsitz**. Danach beginnt er auf **Spielerlevel 1** mit **1.000 M Startguthaben**, zwei kostenlosen **4-t-7,5-Tonnern** (LKW-01 und LKW-02, jeweils 0 km und Common 0 ★) und fünf gemischten Angeboten. Der erste selbst gekaufte LKW erhält die Nummer 03. Den Stadthub eröffnet man kostenlos; anschließend kann der erste Stadttransporter gekauft werden. Bestehende Spielstände behalten Guthaben, Fahrzeuge und laufende Aufträge und erhalten keinen zusätzlichen Starter-LKW.
 - Auf dem Dashboard gibt es vorübergehend den Knopf **„+50.000 M (Test)“**. Jeder Klick schreibt dem aktuellen Spielstand 50.000 M gut. Die Gutschrift bleibt nach dem Neuladen erhalten und wird in der Münzenbilanz getrennt vom Transportertrag als „Testmünzen“ ausgewiesen.
 - Ein freier LKW kann genau einen verfügbaren Auftrag übernehmen. Ein Auftrag hat genau einen zugewiesenen LKW.
 - Pro Tour transportiert der LKW höchstens seine aktuelle Kapazität. Die nötigen Touren sind `aufrunden(Restvolumen / Kapazität)`.
@@ -16,7 +16,7 @@ Diese Datei beschreibt die **aktuell implementierten Werte und Freischaltungen**
 
 ### Startorte und Auftragsumgebung
 
-Jeder mögliche Startort hat nahe Ziele innerhalb seines Landes und Ziele in anderen Ländern seiner Region. Alle Angebote starten am gewählten Hauptsitz. Stadtverkehr läuft im Stadthub ohne einzelne Auftragsangebote. Für Landes- und internationale Aufträge wählt das Spiel eine Route aus der jeweiligen Ortsliste; die Entfernung schwankt um höchstens 5 % um den hinterlegten Spielwert. Es werden keine Schiffsfahrten simuliert. Die Ortslisten und Kilometerwerte stehen in `app.js` unter `START_CITIES`.
+Jeder mögliche Startort hat nahe Ziele innerhalb seines Landes und Ziele in anderen Ländern seiner Region. Alle Angebote starten am gewählten Hauptsitz. Stadtverkehr läuft im Stadthub ohne einzelne Auftragsangebote. Für Landes- und internationale Aufträge wählt das Spiel eine Route aus der jeweiligen Ortsliste; der hinterlegte Kilometerwert bleibt unverändert. Es werden keine Schiffsfahrten simuliert. Die Ortslisten und Kilometerwerte stehen in `app.js` unter `START_CITIES`.
 
 | Kontinent | Wählbare Startorte |
 | --- | --- |
@@ -47,15 +47,17 @@ Landesweite und internationale Aufträge sind von Anfang an verfügbar. Stammkun
 
 | LKW | Grundkapazität | Fahrzeugpreis je km | Kaufpreis | Erlaubte Aufträge |
 | --- | ---: | ---: | ---: | --- |
-| Kleintransporter | 1 t | 0,20 M | 450 M | Stadthub |
-| Stadtlaster | 1,5 t | 0,50 M | 900 M | Stadthub |
-| Allrounder | 4 t | 0,65 M | 1.600 M | Landesweit |
-| Fernlaster | 8,5 t | 0,70 M | 2.600 M | Landesweit und International |
-| Schwerlaster | 18 t | 1,60 M | 4.000 M | Landesweit und International |
+| Sprinter | 1 t | 0,20 M | 4.000 M | Stadthub |
+| 3,5-Tonner | 1,5 t | 0,50 M | 20.000 M | Stadthub |
+| 7,5-Tonner | 4 t | 0,65 M | 25.000 M | Landesweit |
+| 18-Tonner | 8,5 t | 0,70 M | 100.000 M | Nur Landesweit |
+| 26-Tonner | 13 t | 1,05 M (vorläufig) | 250.000 M | Landesweit und International |
+| Sattelzug | 18 t | 1,60 M | 500.000 M | Landesweit und International |
+| 40-t-Tautliner | 24 t | 2,10 M (vorläufig) | 1.000.000 M | Landesweit und International |
 
-Die Auftragsart wird anhand der **Fahrzeugklasse** geprüft. Die Kapazität ist je Fahrzeugklasse fest. Alle Fahrzeugtypen und Auftragsarten sind unabhängig vom Spielerlevel verfügbar. Für einen Kauf sind genügend Münzen und ein freier LKW-Platz erforderlich; für die Zuweisung ein geeigneter freier LKW.
+Die Modellnamen bezeichnen gängige Fahrzeugtypen; die angegebene Grundkapazität ist die im Spiel transportierbare Nutzlast. Die Auftragsart wird anhand der **Fahrzeugklasse** geprüft. Die Kapazität ist je Fahrzeugklasse fest. Alle Fahrzeugtypen und Auftragsarten sind unabhängig vom Spielerlevel verfügbar. Für einen Kauf sind genügend Münzen und ein freier LKW-Platz erforderlich; für die Zuweisung ein geeigneter freier LKW.
 
-Die Seite **Garage** zeigt zwei Tabellen übereinander: oben Allrounder, Fernlaster und Schwerlaster für landesweite und internationale Transporte, darunter Kleintransporter und Stadtlaster für den Stadthub. Bei laufenden Aufträgen zählt dort die Restzeit bis zum Abschluss des gesamten Auftrags herunter. Ein Klick auf eine Fahrzeugzeile öffnet die Details mit Auftrag, Status und Fahrzeugrang. Der **Händler** zeigt zwei Bereiche: Stadttransporter (Kleintransporter und Stadtlaster) sowie Langstreckentransporter (Allrounder, Fernlaster und Schwerlaster).
+Die Seite **Garage** zeigt zwei Tabellen übereinander: oben reguläre LKW für landesweite und gegebenenfalls internationale Transporte, darunter Sprinter und 3,5-Tonner für den Stadthub. Bei laufenden Aufträgen zählt dort die Restzeit bis zum Abschluss des gesamten Auftrags herunter. Ein Klick auf eine Fahrzeugzeile öffnet die Details mit Auftrag, Status und Fahrzeugrang. Der **Händler** zeigt zwei Bereiche: Stadttransporter (Sprinter und 3,5-Tonner) sowie Langstreckentransporter nach Grundkapazität geordnet (7,5-Tonner, 18-Tonner, 26-Tonner, Sattelzug und 40-t-Tautliner).
 
 ### Fahrzeugstufen und Seltenheit
 
@@ -79,7 +81,7 @@ Beim Wechsel in die nächste Seltenheit beginnt deren angezeigte Stufe wieder be
 | Epic | 5, 10, 10, 10, 15, 15, 15, 20, 20, 25 | 145 |
 | Legendär | 1, 2, 2, 2, 3, 3, 3, 4, 4, 5 | 29 |
 
-Für reguläre LKW stehen auf Level 1 **5 globale Kaufplätze** bereit. Auf Level 5, 10, 15 und jedem weiteren durch 5 teilbaren Level kommt ein Platz hinzu: `5 + abrunden(Spielerlevel / 5)`. Auf Level 100 sind es genau **25 Plätze**. Stadttransporter haben ein getrenntes Limit von `max(1, abrunden(Spielerlevel × 0,75))`; auf Level 100 sind es **75**. Vorhandene Fahrzeuge aus alten Spielständen bleiben erhalten. Die **Disposition erweitert nur die landesweiten und internationalen Auftragslisten**.
+Für reguläre LKW stehen auf Level 1 **5 globale Kaufplätze** bereit. Auf Level 5, 10, 15 und jedem weiteren durch 5 teilbaren Level kommt ein Platz hinzu: `5 + abrunden(Spielerlevel / 5)`. Auf Level 100 sind es genau **25 Plätze**. Stadttransporter haben ein getrenntes Limit von `max(1, abrunden(Spielerlevel × 0,75))`; auf Level 100 sind es **75**. Vorhandene Fahrzeuge aus alten Spielständen bleiben erhalten. Die **Disposition erweitert die gemeinsame Auftragsbörse**.
 
 ### Tempo und Kapazitätsmodule
 
@@ -95,14 +97,14 @@ Bei Leerfahrt sind 0 t geladen. Der Ladungsabschlag gilt auch für die ursprüng
 
 | Auftragsart | Geeignete LKW | Strecke je Tour | Auftragsvolumen |
 | --- | --- | ---: | ---: |
-| Landesweit | Allrounder, Fernlaster und Schwerlaster | abhängig vom Startort und regionalen Ziel | 40–150 t, in 10-t-Schritten |
-| International | Fernlaster und Schwerlaster | abhängig vom Startort und Auslandsziel | 60–220 t, in 10-t-Schritten |
+| Landesweit | 7,5-Tonner, 18-Tonner, 26-Tonner, Sattelzug und 40-t-Tautliner | 40–180 km einfach | 10–80 t, in 10-t-Schritten |
+| International | 26-Tonner, Sattelzug und 40-t-Tautliner | 150–500 km einfach, geografische Ausnahmen unten | 10–60 t, in 10-t-Schritten |
 
-Nationale und internationale Strecken können je nach Startort deutlich länger sein; internationale LKW-Routen von Shanghai, Santos und Callao sind wegen ihrer Lage weit. Alte verfügbare Stadtangebote werden beim Laden entfernt; laufende und abgeschlossene Stadtaufträge bleiben erhalten.
+Geografische Ausnahmen ohne hinterlegte realistische internationale LKW-Route innerhalb von 150–500 km: **Hongkong** (nächstes Auslandsziel Móng Cái, 750 km), **Shanghai** (Ulaanbaatar, 2.500 km), **Durban** (Maseru, 510 km), **New York** (Montréal, 600 km), **Santos** (Ciudad del Este, 1.100 km) und **Callao** (Guayaquil, 1.100 km). Dort bleiben die realen hinterlegten Strecken erhalten. Alte verfügbare Stadtangebote werden beim Laden entfernt; laufende und abgeschlossene Stadtaufträge bleiben erhalten.
 
-Es gibt die Angebotsseiten **Landesweit** und **International**. Beide sind ab Spielbeginn offen und zeigen je **fünf verfügbare Angebote**. Die Disposition kann diese Zahl je Auftragsart auf **bis zu zehn** erhöhen. Sobald ein Auftrag zugewiesen wird, erscheint auf derselben Seite ein neues Angebot. Die Auftragsseite zeigt nur verfügbare Angebote; Fortschritt laufender Aufträge ist in der Garage sichtbar. Die Liste zeigt die **Frachtvergütung** unabhängig vom LKW; das Zuweisungsfenster zerlegt den Gewinn je passendem LKW.
+Die **gemeinsame Auftragsbörse** zeigt ab Spielbeginn **fünf verfügbare Angebote insgesamt**. Jeder neue Platz wird unabhängig mit **80 % Landesweit und 20 % International** besetzt. Die Disposition erweitert die gemeinsame Liste auf bis zu **15 Angebote**. Sobald ein Auftrag zugewiesen wird, wird sein Platz sofort neu ausgewürfelt und aufgefüllt. Die Auftragsseite zeigt nur verfügbare Angebote; Fortschritt laufender Aufträge ist in der Garage sichtbar. Die Liste zeigt die **Frachtvergütung** unabhängig vom LKW; das Zuweisungsfenster zerlegt den Gewinn je passendem LKW.
 
-Neue Angebote werden zufällig innerhalb der jeweiligen Auftragsart erstellt. Pro neuem landesweiten oder internationalen Angebot besteht unabhängig eine 10-%-Chance auf einen Stammkunden dieses Segments. Eine Liste kann daher auch ganz ohne Kundenauftrag sein.
+Pro neuem landesweiten oder internationalen Angebot besteht unabhängig eine 10-%-Chance auf einen Stammkunden dieses Segments. Eine Liste kann daher auch ganz ohne Kundenauftrag sein.
 
 Landesweite und internationale Angebote haben zusätzlich eine Fahrart: **90 % Single Way** und **10 % Dual Way**. Bei beiden fährt der LKW für jede Ladung zum Ziel und zurück zur Ladestelle. Beim Single Way bleibt die Rückfahrt leer und unbezahlt; beim Dual Way nimmt er am Ziel die gleiche Frachtmenge als Rückfracht mit. Die Strecke im Angebot bezeichnet eine einfache Fahrt. Laufende alte Stadtaufträge behalten ihre direkte Tour ohne Rückfahrt.
 
@@ -110,9 +112,9 @@ Für die Fahrzeit gilt: **Stadtverkehr** `Strecke / Tempo beladen`; **Single Way
 
 **Automatische Aktualisierung:** Alle nicht angehefteten verfügbaren Angebote sämtlicher Auftragsarten werden **alle 15 Minuten kostenlos** ersetzt. Der nächste Zeitpunkt und ein Countdown stehen im Spielstand und auf der Auftragsseite. Nach einer Spielpause wird beim erneuten Öffnen eine überfällige Aktualisierung ausgeführt; verpasste Intervalle werden nicht einzeln nachgespielt. Erst ein tatsächlich ausgeführter automatischer Angebotswechsel setzt den Zähler für manuelle Aktualisierungen auf null.
 
-**Manuelle Aktualisierung:** Der Knopf **„Neue Angebote“** ersetzt nur die nicht angehefteten verfügbaren Angebote der gerade geöffneten Auftragsart. Der Preis des nächsten Klicks beträgt **50 M × max(1, Anzahl aller eigenen Fahrzeuge) × (1 + Anzahl erfolgreicher manueller Aktualisierungen seit dem letzten automatischen Angebotswechsel)**. Mit fünf Fahrzeugen kosten die ersten drei manuellen Wechsel 250 M, 500 M und 750 M. Der Zähler gilt gemeinsam für Landesweit und International, bleibt im Spielstand erhalten und hat kein Limit. Eine manuelle Aktualisierung verschiebt den automatischen Timer nicht.
+**Manuelle Aktualisierung:** Der Knopf **„Neue Angebote“** ersetzt alle nicht angehefteten verfügbaren Angebote der gemeinsamen Börse. Der Preis des nächsten Klicks beträgt **50 M × max(1, Anzahl aller eigenen Fahrzeuge) × (1 + Anzahl erfolgreicher manueller Aktualisierungen seit dem letzten automatischen Angebotswechsel)**. Mit fünf Fahrzeugen kosten die ersten drei manuellen Wechsel 250 M, 500 M und 750 M. Der Zähler bleibt im Spielstand erhalten und hat kein Limit. Eine manuelle Aktualisierung verschiebt den automatischen Timer nicht.
 
-Mit freigeschaltetem und ausgebautem Vertrieb lassen sich **1 bis 3 verfügbare Aufträge gleichzeitig anheften**, über ihre Auftragsarten zusammen. Angeheftete Angebote belegen weiterhin einen Platz in ihrer Auftragsliste. Die Anheftung kann jederzeit gelöst werden. Bei Zuweisung an einen LKW endet sie automatisch; der freie Angebotsplatz wird wie üblich aufgefüllt.
+Mit freigeschaltetem und ausgebautem Vertrieb lassen sich **1 bis 3 verfügbare Aufträge gleichzeitig anheften**. Angeheftete Angebote belegen weiterhin einen Platz in der gemeinsamen Börse. Die Anheftung kann jederzeit gelöst werden. Bei Zuweisung an einen LKW endet sie automatisch; der freie Angebotsplatz wird wie üblich aufgefüllt.
 
 ## 5. Fahrtzeit, Münzen und XP
 
@@ -124,25 +126,27 @@ Mit freigeschaltetem und ausgebautem Vertrieb lassen sich **1 bis 3 verfügbare 
 - Spieler-XP je abgeschlossener Tour: `3 + beladene Tonnen`, bei Dual Way also `3 + 2 × Frachtmenge`.
 - Transportgewinn: Summe der Vergütungen minus Summe der Betriebskosten. LKW-Käufe mindern das Guthaben zusätzlich.
 
-**Beispiel ohne Werkstattausbau:** Ein Single-Way-Auftrag über **100 t und 46 km** mit einem **4-t-Allrounder** benötigt 25 Hin- und Rückfahrten. Die Frachtvergütung beträgt **4.600 M**, die Fahrzeugkosten **1.495 M** (25 × 92 km × 0,65 M) und die Lastkosten **460 M**. Das ergibt **2.645 M Transportgewinn**. Die erst nach Auftragsabschluss abholbare Prämie beträgt zusätzlich **10 M**; zusammen sind es **2.655 M**. Münzen werden pro Tour auf zwei Nachkommastellen gerundet. Die Tourbuchung verteilt die Rundungsreste so, dass der Frachtumsatz unabhängig vom gewählten LKW gleich bleibt.
+**Beispiel ohne Werkstattausbau:** Ein Single-Way-Auftrag über **100 t und 46 km** mit einem **4-t-7,5-Tonner** benötigt 25 Hin- und Rückfahrten. Die Frachtvergütung beträgt **4.600 M**, die Fahrzeugkosten **1.495 M** (25 × 92 km × 0,65 M) und die Lastkosten **460 M**. Das ergibt **2.645 M Transportgewinn**. Die erst nach Auftragsabschluss abholbare Prämie beträgt zusätzlich **10 M**; zusammen sind es **2.655 M**. Münzen werden pro Tour auf zwei Nachkommastellen gerundet. Die Tourbuchung verteilt die Rundungsreste so, dass der Frachtumsatz unabhängig vom gewählten LKW gleich bleibt.
 
 Bereits gebuchte Touren in vorhandenen Spielständen behalten ihre historischen Münzen und Statistikwerte. Für alle künftig abgeschlossenen Touren gilt das neue Modell, auch wenn ihr Auftrag schon läuft. Eine Gewinnvorschau verwendet die aktuelle Werkstattstufe; spätere Änderungen daran ändern noch nicht gebuchte Touren.
 
-Bereits laufende landesweite Aufträge eines Stadtlasters aus älteren Spielständen dürfen zu Ende gefahren werden. Neue landesweite Aufträge können ihm nicht mehr zugewiesen werden.
+Bereits laufende landesweite Aufträge eines 3,5-Tonners aus älteren Spielständen dürfen zu Ende gefahren werden. Neue landesweite Aufträge können ihm nicht mehr zugewiesen werden.
 
 Nach der letzten Tour eines Auftrags entsteht genau **eine Auftragsprämie**. Der Auftrag erscheint im Dashboard unter „Auftragsprämien“. Ein Klick holt die einzelne Prämie ab; danach verschwindet der Auftrag aus dieser Liste. Mit „Alles sammeln“ erscheint eine Übersicht der Münzen und Zahnräder aller derzeit offenen Prämien. Erst „Bestätigen“ schreibt sie gesammelt gut und entfernt die Aufträge aus der Liste. Abbrechen lässt sie offen. Pro insgesamt transportierter Tonne gibt es **0,1 M** zusätzlich (100 t ergeben 10 M; bei Dual Way zählen die gleich großen Hin- und Rückfrachten, also 20 M). Diese Münzen werden beim Abholen gutgeschrieben und in der Statistik getrennt vom Tourenertrag erfasst. Jede Prämie kann nur einmal abgeholt werden; ihr Inhalt wird beim Abschluss festgelegt und gespeichert.
 
-Zahnräder werden **einmal je vollständig abgeschlossenem Auftrag** festgelegt und erst beim Abholen der Prämie gutgeschrieben. Einzelne Touren geben keine Zahnräder. Jede Seltenheit wird unabhängig gewürfelt; deshalb können mehrere Sorten gemeinsam erscheinen. Die tatsächlichen Mengen stehen in der Prämienansicht. Die Werte außer **90–110 Common** bei normalen Aufträgen und der Rang-Kostenstaffel sind vorläufig und stehen zentral in `GEAR_LOOT` in `app.js`.
+Zahnräder werden **einmal je vollständig abgeschlossenem Auftrag** festgelegt und erst beim Abholen der Prämie gutgeschrieben. Einzelne Touren geben keine Zahnräder. Die Basis ist `einfache Strecke in km × Auftragsvolumen in t` (tkm). Dual Way verdoppelt diese Basis nicht. Die Seltenheiten werden unabhängig gewürfelt und parallel gesammelt; es gibt kein Tageslimit. Angefangene Blöcke werden mit ihrem Anteil gewürfelt (z. B. 50 zusätzliche tkm ergeben eine 50-%-Chance auf einen weiteren Common-Wurf). Die tatsächlichen Mengen stehen in der Prämienansicht.
 
-| Quelle | Common garantiert | Uncommon | Rare | Epic | Legendär |
+| Seltenheit | Je tkm-Block | 0 Zahnräder | 1 Zahnrad | 2 Zahnräder | Mittelwert je Block |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Normaler Stadtauftrag | 90–110 | – | – | – | – |
-| Normaler Landes-/Auslandsauftrag | 90–110 | 2 %: 100–150 | – | – | – |
-| Stammkundenauftrag | 110–130 | 5 %: 100–150 | 10 %: 25–40 | – | – |
-| Sonderfahrt | 130–150 | 8 %: 100–150 | 15 %: 25–40 | 20 %: 5–10 | – |
-| Empfehlungsfahrt | 150–170 | 10 %: 100–150 | 20 %: 25–40 | 25 %: 5–10 | 1 garantiert, 25 % auf ein zweites |
+| Common | 100 tkm | 40 % | 40 % | 20 % | 0,8 |
+| Uncommon | 1.000 tkm | 75 % | 18 % | 7 % | 0,32 |
+| Rare, nur Stammkunden | 1.000 tkm | 92 % | 8 % | – | 0,08 |
 
-Bei **internationalen** Aufträgen wird die ausgewürfelte Common-Menge mit 1,2 multipliziert und auf ganze Zahnräder gerundet. Alle anderen Quoten bleiben gleich. Zehn normale Aufträge liefern meist ungefähr 900–1.100 Common; Common-Stufe 1 kostet 1.000. Normale Stammkundenaufträge erhalten kein Kapazitätsmodul. Alte bereits festgelegte Zahnradfunde bleiben bei der Migration erhalten. Die Vorräte zeigen alle fünf Seltenheiten.
+Sonderfahrten behalten zusätzlich **20 % auf 5–10 Epic**, Empfehlungsfahrten **25 % auf 5–10 Epic sowie 1 Legendär garantiert und 25 % auf ein zweites**. Diese höheren Seltenheiten werden vorläufig nicht neu balanciert; alte Common-, Uncommon- und Rare-Pakete dieser Fahrten werden nicht zusätzlich ausgezahlt. Privatabholungen aus dem Hub geben keine Zahnräder. Normale Stammkundenaufträge erhalten kein Kapazitätsmodul. Alte bereits festgelegte Zahnradfunde bleiben bei der Migration erhalten. Die Vorräte zeigen vorhandene Zahnräder aller fünf Seltenheiten als Item-Karten im Seitenverhältnis 2:3. Dort werden nur Bestände und hergestellte Aufträge verwaltet; Herstellungen finden in Entwicklung statt.
+
+**Orientierungswert:** Für zehn durchgehend aktive gemischte LKW (je zwei mit 4, 8,5, 11, 18 und 24 t), 80/20 Landesweit/International soweit fahrbar und 50 % gezielt gefahrene Stammkundenaufträge entsprechen 29.000 Common etwa **20 aktiven Stunden**, 2.900 Uncommon etwa **50 Stunden insgesamt** und 725 Rare etwa **100 Stunden insgesamt**. Die drei Arten laufen parallel; dies ist ein Modellwert ohne Leerlauf, keine garantierte Spieldauer. Rechnerisch setzt er etwa 181.250 tkm pro Flottenstunde voraus; Fahrstrecken, verfügbare Stammkundenangebote und Zufall ändern die tatsächliche Dauer.
+
+Eine Stichprobe mit den hinterlegten Routen und der aktuellen Fahrzeitformel ergab etwa **175.500–176.250 tkm pro Flottenstunde** über die zwölf Startorte. Daraus folgen im Mittel rund **20,6 / 51,5 / 103 Stunden** für Common / Uncommon / Rare, also ungefähr **3 % länger** als der Orientierungswert. Die 4-t-LKW fahren dabei nur national; die übrigen acht LKW erhalten 80/20-Angebote. Die 11-t- und 24-t-Kapazitäten sind Modellannahmen für ausgebaute Fahrzeuge.
 
 ## 6. Kunden und Vertrauen
 
@@ -182,13 +186,13 @@ Die Firmenansicht zeigt die Abteilungen des Hauptsitzes in kompakten Karten. Üb
 
 ### Stadthub und Privatabholungen
 
-Es gibt **einen Stadthub** am Hauptsitz. Seine Eröffnung kostet **0 M**. Kleintransporter und Stadtlaster werden getrennt von regulären LKW gezählt. Neu gekaufte Stadttransporter werden direkt im Hub eingesetzt. Stadtfahrzeuge aus alten Spielständen bleiben erhalten und können im Hub eingesetzt werden, sobald ihre alten Aufträge abgeschlossen sind. Ein Hub-Fahrzeug kann nicht gleichzeitig einen Einzelauftrag übernehmen.
+Es gibt **einen Stadthub** am Hauptsitz. Seine Eröffnung kostet **0 M**. Sprinter und 3,5-Tonner werden getrennt von regulären LKW gezählt. Neu gekaufte Stadttransporter werden direkt im Hub eingesetzt. Stadtfahrzeuge aus alten Spielständen bleiben erhalten und können im Hub eingesetzt werden, sobald ihre alten Aufträge abgeschlossen sind. Ein Hub-Fahrzeug kann nicht gleichzeitig einen Einzelauftrag übernehmen.
 
 Ein Einkaufszyklus dauert **eine Stunde**: 45 Minuten Verteilung, 15 Minuten Pause. Die mögliche Stundenmenge ist die Summe der vollen Touren jedes eingesetzten Fahrzeugs in 45 Minuten. Eine Tour fährt 12 km beladen und 12 km leer; Kapazität, Ladungsabschlag und Fahrzeugrang bestimmen die Fahrzeit. Der Vertrieb kauft auf Stufe 0 **75 %** dieser möglichen Menge ein. Jede seiner **25 Stufen** erhöht die Menge um einen Prozentpunkt bis auf **100 %**. Es wird keine Ware über die abtransportierbare Menge hinaus eingekauft.
 
-Vorläufig gelten **10 M Verkaufserlös** und **3 M Einkaufspreis** je verteilter Tonne. Der stündliche Hub-Ertrag ist damit `verteilte Tonnen × 7 M`. Der Hub erzeugt **keine XP und keine Zahnräder**. Nach jedem aktiven Stundenzyklus landen **8–12 Abholhinweise** im Kassenbestand. Der Kassenbestand fasst derzeit **6 Stundenzyklen** und muss dann abgeholt werden, bevor er weiter wachsen kann. Auf dem Dashboard zeigt eine Karte Münzen, Abholhinweise und die Restzeit bis zur vollen Kasse; dort kann der gesamte Hub-Ertrag direkt abgeholt werden. Ohne eingesetzten Stadttransporter pausiert die Füllung. Abgeholte Münzen fließen in das Guthaben, abgeholte Hinweise in die Vorräte. Hub-Tonnen und abgeholter Hub-Ertrag erscheinen getrennt in den Statistiken.
+Vorläufig gelten **10 M Verkaufserlös** und **3 M Einkaufspreis** je verteilter Tonne. Der stündliche Hub-Ertrag ist damit `verteilte Tonnen × 7 M`. Der Hub erzeugt **keine XP und keine Zahnräder**. Münzen steigen während der **45 Arbeitsminuten laufend** im Kassenbestand; die **8–12 Abholhinweise** eines Zyklus erscheinen über diese Zeit verteilt. Während der 15-minütigen Pause kommt nichts hinzu. Beides kann **jederzeit abgeholt** werden, sobald etwas vorhanden ist. Das Abholen leert nur die Kasse und die Hinweise: Es startet weder Einkauf noch Arbeits- und Pausenrhythmus neu und bereits abgeholter Ertrag wird nicht erneut gebucht. Der Kassenbestand fasst derzeit **6 abgeschlossene Stundenzyklen** seit der letzten Abholung und muss dann abgeholt werden, bevor er weiter wächst. Auf dem Dashboard zeigt eine Karte Münzen, Abholhinweise und die Restzeit bis zur vollen Kasse; dort kann der Ertrag direkt abgeholt werden. Ohne eingesetzten Stadttransporter pausiert die Füllung. Abgeholte Münzen fließen in das Guthaben, abgeholte Hinweise in die Vorräte. Hub-Tonnen und abgeholter Hub-Ertrag erscheinen getrennt in den Statistiken.
 
-In den Vorräten lassen sich **100 Abholhinweise zu einer Privatabholung** kombinieren. Diese bleibt dort gespeichert und wird einem freien regulären LKW zugewiesen. Beim Abschluss erhält sie keine Zahnräder und kein Kapazitätsmodul, aber garantiert **1 Lieferantenkontakt** und mit vorläufig **20 % Chance** einen zweiten. Die Kontakte werden zusammen mit der Auftragsprämie abgeholt. Unverbrauchte Kontakte bleiben erhalten; weitere Verwendungen können später ergänzt werden.
+In **Entwicklung** lassen sich **100 Abholhinweise zu einer Privatabholung** herstellen. Der hergestellte Auftrag bleibt in den **Vorräten** gespeichert und wird dort einem freien regulären LKW zugewiesen. Weitere Herstellungen können später auf der Entwicklungsseite ergänzt werden. Beim Abschluss erhält sie keine Zahnräder und kein Kapazitätsmodul, aber garantiert **1 Lieferantenkontakt** und mit vorläufig **20 % Chance** einen zweiten. Die Kontakte werden zusammen mit der Auftragsprämie abgeholt. Unverbrauchte Kontakte bleiben erhalten; weitere Verwendungen können später ergänzt werden.
 
 Ein Vertriebsausbau kostet vorläufig `5 × Zielstufe` **Lieferantenkontakte**, keine Münzen. Die erste Stufe dauert **12 Stunden**, jede folgende Stufe weitere **12 Stunden** länger: Stufe 2 dauert 24 Stunden, Stufe 25 dauert 300 Stunden. Während des Baus läuft der Hub normal weiter. Der höhere Einkaufswert gilt erst nach Abschluss und ab dem nächsten Einkaufszyklus. Ein zweites Ausbaumaterial wird später festgelegt.
 
@@ -196,7 +200,7 @@ Ein Vertriebsausbau kostet vorläufig `5 × Zielstufe` **Lieferantenkontakte**, 
 | --- | --- | --- |
 | Buchhaltung | Finanzen und Abrechnungen | Gesperrt |
 | Personalabteilung | Spätere Neugestaltung | Vorläufig keine Freischaltung oder Einstellung; bestehende Freischaltungen bleiben gespeichert |
-| Disposition | Mehr verfügbare Aufträge je Auftragsart | Für 5.000 M freischaltbar |
+| Disposition | Mehr Plätze in der gemeinsamen Auftragsbörse | Für 5.000 M freischaltbar |
 | Werkstatt | Betriebskosten der LKW senken | Für 5.000 M freischaltbar |
 | Fuhrpark | Spätere Verwaltung und Entwicklung des Fuhrparks | Gesperrt; Funktion und Freischaltung folgen |
 | Lager | Spätere Verwaltung von Materialien und Gegenständen | Gesperrt; Funktion und Freischaltung folgen |
@@ -208,15 +212,16 @@ Die **Personalabteilung** ist bis zu ihrer Neugestaltung pausiert. Neue Einstell
 
 Der **Vertrieb** startet nach der Freischaltung auf Stufe 0. Seine drei Ausbaustufen erhöhen die Zahl gleichzeitig anheftbarer Aufträge auf **1, 2 oder 3**. Die Stufen kosten vorläufig **500 M**, **1.000 M** und **1.500 M**. Das Limit gilt über Landesweit und International zusammen. Angeheftete Angebote bleiben bei automatischen und manuellen Angebotswechseln erhalten. Wird ein solches Angebot zugewiesen, wird der Pin frei.
 
-Nach der Freischaltung der Disposition können Landesweit und International getrennt von **Stufe 0 bis Stufe 5** ausgebaut werden. Jede Stufe fügt dieser Liste **einen dauerhaft verfügbaren Auftrag** hinzu. Die Anzahl lautet `5 + Ausbaustufe`, also höchstens **10 Angebote** je Auftragsart. Beim Kauf einer Stufe werden die zusätzlichen Angebote sofort aufgefüllt.
+Nach der Freischaltung der Disposition kann die gemeinsame Auftragsbörse von **Stufe 0 bis Stufe 10** ausgebaut werden. Jede Stufe fügt **einen dauerhaft verfügbaren Platz** hinzu. Die Anzahl lautet `5 + Ausbaustufe`, also höchstens **15 Angebote insgesamt**. Beim Kauf wird der neue Platz sofort ausgewürfelt und aufgefüllt. Bisher getrennt gekaufte landesweite und internationale Stufen werden beim Laden **addiert**; der gekaufte Ausbau geht nicht verloren.
 
-| Nächste Stufe | Kosten je Auftragsart | Angebote danach |
+| Nächste Stufe | Kosten | Angebote insgesamt danach |
 | ---: | ---: | ---: |
 | 1 | 500 M | 6 |
 | 2 | 1.000 M | 7 |
 | 3 | 1.500 M | 8 |
 | 4 | 2.000 M | 9 |
 | 5 | 2.500 M | 10 |
+| 6–10 | 3.000–5.000 M, je Stufe +500 M | 11–15 |
 
 Die **Werkstatt** hat **50 Ausbaustufen**. Jede Stufe senkt den Fahrzeugpreis aller LKW um **0,001 M/km**. Der Satz lautet `Fahrzeuggrundpreis − 0,001 × Werkstattstufe M/km`. Auf Stufe 50 spart jeder LKW **0,05 M je gefahrenem Kilometer**; die Lastkosten und Frachtvergütung bleiben gleich. Der jeweils aktuelle Satz gilt beim Abschluss einer Tour; die Gewinnvorschau im Zuweisungsfenster sowie die Garagentabelle und Fahrzeugdetails zeigen diesen Satz. Bereits gebuchte Touren werden nicht rückwirkend geändert.
 
@@ -258,3 +263,13 @@ Ein abgeschlossener normaler Stammkundenauftrag vergibt mit **20 % landesweit** 
 Beim Abschluss einer Sonderfahrt werden zwei unabhängige Chancen einmalig ausgewürfelt: **8 % Kapazitätsmodul** und **4 % Empfehlungsfahrt** landesweit, **12 % Kapazitätsmodul** und **6 % Empfehlungsfahrt** international. Die kundenbezogene Fähigkeit erhöht nur die Empfehlungschance. Empfehlungsfahrten werden für denselben Kunden und dasselbe Segment mit festen Auftragsdaten gespeichert und später bewusst gestartet. Sie erzeugen keine weiteren Empfehlungsfahrten. Ihre vorläufige Modulchance beträgt **20 % landesweit** und **30 % international**. Die Grundwerte stehen zentral in `SPECIAL_CHANCES` in `app.js`. Modulbeute und die bestehende Auftragsprämie werden beim Abschluss festgelegt, nach dem Abholen gutgeschrieben und können auch nach Reload nur einmal abgeholt werden.
 
 Die **Vorräte** zeigen Kapazitätsmodule. Im Garagen-Fahrzeugdetail kosten die beiden möglichen Kapazitätsstufen **1** und **3 Module** und geben je **+1 t**. Bestand, Kosten und Höchststufe werden angezeigt. Alte Spielstände behalten LKW, laufende Aufträge und bisherige Spielwerte; neue Modulstände beginnen bei null.
+
+## Fahrzeugverkauf
+
+In der Garage lassen sich freie Fahrzeuge ohne laufenden Auftrag nach einer gesonderten Bestätigung verkaufen. Mindestens ein regulärer Auftrags-LKW muss im Fuhrpark bleiben; Stadttransporter können vollständig verkauft werden. Ein dem Stadthub zugeteilter Stadttransporter darf verkauft werden, sofern er keinen Einzelauftrag fährt. Der Fahrzeugplatz wird frei.
+
+Der Münzerlös beträgt bei 0 gefahrenen Kilometern 95 % des maßgeblichen Kaufpreises. Der Satz sinkt linear um 80 Prozentpunkte bis 500.000 km auf 15 % und bleibt danach bei 15 %. Gezählt werden die Kilometer des konkreten Fahrzeugs für jede abgeschlossene Tour, einschließlich der Rückfahrt bei Single Way und Dual Way. Der Erlös wird auf zwei Nachkommastellen gerundet. Für gekaufte Fahrzeuge gilt der beim Kauf tatsächlich gezahlte Preis, für beide kostenlosen Start-LKW der jeweils aktuelle 7,5-Tonner-Modellpreis. Jeder der beiden Starter kann verkauft werden, solange mindestens ein regulärer Auftrags-LKW bleibt. Bei alten Spielständen ohne historischen Einzelpreis wird für gekaufte Fahrzeuge der bisherige Modellpreis bei der Migration festgehalten; spätere Händlerpreise ändern ihn nicht.
+
+Je Seltenheit werden zunächst alle Zahnräder der erreichten Rangstufen addiert. Davon werden einmalig 50 % berechnet und auf ganze Zahnräder **abgerundet**. Es gibt keinen zusätzlichen Rangbonus in Münzen. Eingebaute Kapazitätsmodule (1 bei erster Stufe, insgesamt 4 bei zweiter Stufe) gehen endgültig verloren. Der Verkaufsdialog zeigt Münzen, Zahnräder jeder Seltenheit und verlorene Module vor der endgültigen Bestätigung. Ein neu gekauftes Fahrzeug beginnt wieder bei Rangstufe 0.
+
+Fahrzeugdetails zeigen gefahrene Kilometer sowie abgeschlossene Touren und Aufträge. Bei älteren Spielständen werden diese Werte aus den noch vorhandenen, dem Fahrzeug zugeordneten Aufträgen soweit möglich rekonstruiert. Bereits entfernte Aufträge und frühere pauschale Stadthub-Leistung lassen sich keinem einzelnen Fahrzeug zuverlässig zuordnen und erscheinen daher nicht in dessen Zähler. Neue, im Stadthub vollendete Hin- und Rückfahrten zählen je Fahrzeug mit 24 km als Tour; sie zählen nicht als abgeschlossene Einzelaufträge.

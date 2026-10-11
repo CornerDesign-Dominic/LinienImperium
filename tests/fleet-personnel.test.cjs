@@ -34,6 +34,7 @@ assert.equal(api.dispatchCapacity(), 25);
 assert.equal(api.hubCapacity(), 75);
 
 const legacy = api.newGame('hamburg');
+legacy.trucks.pop(); // A save made before the second starter existed.
 legacy.version = 33;
 legacy.coins = 10000;
 legacy.company.departments.hr = true;
@@ -42,7 +43,7 @@ legacy.stats.employeeSpent = 1000;
 for (let i = 0; i < 6; i++) legacy.trucks.push({ ...legacy.trucks[0], id: `ALT-${i}` });
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 35);
+assert.equal(migrated.version, 37);
 assert.equal(migrated.trucks.length, 7, 'existing trucks remain');
 assert.equal(migrated.coins, 11000, 'hire cost refunded once');
 assert.equal(migrated.company.employees, 0);
@@ -57,6 +58,7 @@ migrated.xp = 10000; // Level 14: seven regular slots, still below current fleet
 api.buyTruck(2);
 assert.equal(migrated.trucks.length, 7);
 migrated.xp = 36000; // Level 27: ten regular slots.
+migrated.coins = 25000;
 api.buyTruck(2);
 assert.equal(migrated.trucks.length, 8, 'buying resumes once level provides room');
 console.log('fleet limits, hub slots, legacy refund and over-limit saves: OK');

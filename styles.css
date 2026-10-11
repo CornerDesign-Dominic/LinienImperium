@@ -107,3 +107,31 @@
 .hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:18px}.hub-main{margin-bottom:18px}.hub-main h2{font-family:'Space Grotesk',sans-serif;color:#254c37;margin:0 0 12px}.hub-main p{color:#789080;font-size:12px;line-height:1.6}.hub-main .section-head{margin-bottom:13px}.hub-main .section-head h2{margin:0}.hub-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.hub-metrics>div{background:#f5f9f0;border:1px solid #e4eddc;border-radius:9px;padding:13px}.hub-metrics span,.hub-metrics strong{display:block}.hub-metrics span{font-size:10px;color:#849889}.hub-metrics strong{margin-top:5px;color:#2e553a;font-family:'Space Grotesk',sans-serif;font-size:17px}.hub-cash{font-family:'Space Grotesk',sans-serif;font-size:30px;color:#2d643f;font-weight:700}.hub-truck-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-top:1px solid #e8eee4}.hub-truck-row:first-of-type{border-top:0}.hub-truck-row span{font-size:13px;color:#2c4d39}.hub-truck-row small{display:block;margin-top:4px;color:#8a9d8b;font-size:11px}.hub-combine-button{margin:16px 0 28px}@media(max-width:800px){.hub-grid{grid-template-columns:1fr}}@media(max-width:560px){.hub-truck-row{align-items:flex-start;flex-direction:column}.hub-metrics{grid-template-columns:1fr 1fr}}
 
 .hub-dashboard-card{min-height:0;padding:18px 20px}.hub-dashboard-amount{font-family:'Space Grotesk',sans-serif;font-size:25px;font-weight:700;color:#214a35;margin:10px 0 6px}.hub-dashboard-meta{display:flex;justify-content:space-between;gap:10px;color:#869a8b;font-size:10px}.hub-dashboard-time{display:flex;justify-content:space-between;gap:10px;margin:12px 0 11px;padding-top:10px;border-top:1px solid #e9eee7;color:#829789;font-size:11px}.hub-dashboard-time strong{color:#315f42;font-family:'Space Grotesk',sans-serif;font-size:14px;font-variant-numeric:tabular-nums}.hub-dashboard-card .button{width:100%;padding:8px 12px}
+
+/* Entwicklung */
+.development-section{max-width:960px}
+.development-recipe{display:flex;justify-content:space-between;align-items:center;gap:32px;padding:22px 0;border-top:1px solid var(--border,#e1e9df)}
+.development-recipe-main{display:flex;align-items:flex-start;gap:18px;max-width:600px}
+.development-recipe-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:12px;background:#edf5e6;color:#386141;font-size:24px}
+.development-recipe h3{margin:0 0 6px;font-size:18px}
+.development-recipe p{margin:0;color:#708b7e;line-height:1.5}
+.development-recipe-action{display:flex;flex-direction:column;align-items:flex-end;gap:12px;flex:none}
+.development-material{font-size:13px;color:#708b7e}
+.development-material strong{margin-left:8px;color:#193a32;font-size:16px}
+@media(max-width:700px){.development-recipe{align-items:stretch;flex-direction:column;gap:20px}.development-recipe-action{align-items:stretch}}
+
+/* Vorräte: kompakte Item-Karten im Verhältnis 2:3 */
+.inventory-section{margin:0 0 34px}
+.inventory-section-title{margin:0 0 14px}
+.inventory-item-grid{display:grid;grid-template-columns:repeat(auto-fill,150px);gap:14px;align-items:start}
+.inventory-item{box-sizing:border-box;width:150px;aspect-ratio:2 / 3;display:flex;flex-direction:column;align-items:stretch;padding:12px;border:1px solid var(--rarity-border,#dce7d9);border-radius:13px;background:linear-gradient(180deg,var(--rarity-bg,#f4f8f0),#fff 56%);color:var(--rarity-color,#315341);box-shadow:0 3px 10px #142c2808;overflow:hidden}
+.inventory-item-count{align-self:flex-end;border-radius:7px;background:#ffffffd9;padding:5px 8px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;line-height:1.1}
+.inventory-item-icon{display:grid;place-items:center;flex:1;min-height:0;font-size:46px;line-height:1}
+.inventory-item-info{display:flex;flex-direction:column;gap:5px;overflow-wrap:anywhere}
+.inventory-item-info strong{font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.2}
+.inventory-item-info small{font-size:11px;line-height:1.35;color:#779083}
+.inventory-trip .inventory-item-count{font-family:inherit;font-size:10px;letter-spacing:.04em}
+.inventory-trip .inventory-item-icon{font-size:34px}
+.inventory-trip .button{width:100%;margin-top:12px;padding:8px 4px;font-size:10px;white-space:normal}
+@media(max-width:600px){.inventory-item-grid{grid-template-columns:repeat(auto-fill,128px);gap:10px}.inventory-item{width:128px;padding:10px}.inventory-item-icon{font-size:50px}.inventory-item-info strong{font-size:12px}}
+.truck-sale-panel{margin-top:20px;padding-top:18px;border-top:1px solid #dce7d9}.truck-sale-panel .button{width:100%;margin-top:14px}.truck-sale-panel p,#sale-dialog-content p{font-size:12px;line-height:1.5;color:#738b79}.sale-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:17px 0}.sale-summary>div{padding:11px;border:1px solid #dce7d9;border-radius:9px;background:#f6faf3}.sale-summary span,.sale-summary strong{display:block}.sale-summary span{font-size:11px;color:#738b79}.sale-summary strong{margin-top:4px;font-size:15px;color:#284b37}

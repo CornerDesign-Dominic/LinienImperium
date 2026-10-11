@@ -24,7 +24,7 @@ api.mute();
 const state = api.newGame('hamburg');
 api.setGame(state);
 const truck = state.trucks[0];
-const other = { id: 'LKW-02', tier: 0, capacity: 1, rarityLevel: 0 };
+const other = { id: 'LKW-03', tier: 0, capacity: 1, rarityLevel: 0 };
 state.trucks.push(other);
 const expected = [29000, 2900, 725, 145, 29];
 assert.deepEqual(Array.from(Object.values(api.RANK_GEAR_COSTS), costs => costs.reduce((a, b) => a + b, 0)), expected);
@@ -52,75 +52,44 @@ api.upgradeTruckRarity(other.id);
 assert.equal(other.rarityLevel, 1);
 assert.equal(state.inventory.gears.common, 0);
 
-const order = (category, kind = 'normal', customer = null) => ({ category, kind, customer, volume: 20, routeType: 'single', status: 'completed' });
-const lootCases = [
-  [order('city'), { common: 90 }],
-  [order('national'), { common: 90, uncommon: 100 }],
-  [order('international'), { common: 108, uncommon: 100 }],
-  [order('national', 'normal', 'frischgut'), { common: 110, uncommon: 100, rare: 25 }],
-  [order('national', 'special', 'frischgut'), { common: 130, uncommon: 100, rare: 25, epic: 5 }],
-  [order('international', 'referral', 'eurolog'), { common: 180, uncommon: 100, rare: 25, epic: 5, legendary: 2 }]
-];
-for (const [item, expectedLoot] of lootCases) {
-  math.random = () => 0;
-  const reward = api.makeCompletionReward(item);
-  assert.deepEqual(JSON.parse(JSON.stringify(reward.gears)), expectedLoot);
-  assert.equal(reward.capacityModule, item.kind === 'special' || item.kind === 'referral');
-}
+const order = (category, kind = 'normal', customer = null, distance = 100, volume = 20) => ({ category, kind, customer, distance, volume, routeType: 'single', status: 'completed' });
+math.random = () => 0;
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national')).gears)), { common: 20, uncommon: 2 });
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'normal', 'frischgut')).gears)), { common: 20, uncommon: 2, rare: 2 });
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'special', 'frischgut')).gears)), { common: 20, uncommon: 2, rare: 2, epic: 5 });
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('international', 'referral', 'eurolog')).gears)), { common: 20, uncommon: 2, rare: 2, epic: 5, legendary: 2 });
+const dual = { ...order('national', 'normal', null), routeType: 'dual' };
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(dual).gears)), { common: 20, uncommon: 2 }, 'dual way does not double the gear basis');
 math.random = () => .999999;
-assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('city')).gears)), { common: 110 });
-assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national')).gears)), { common: 110 });
-assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'referral', 'frischgut')).gears)), { common: 170, legendary: 1 });
-assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('international', 'normal', 'eurolog')).gears)), { common: 156 }, 'customer common international bonus');
-
-const tenStarts = Array.from({ length: 10 }, () => api.makeCompletionReward(order('city')));
-assert.equal(tenStarts.reduce((sum, reward) => sum + reward.gears.common, 0), 1100);
-state.orders = [{ id: 'A-9000', ...order('city'), completionReward: tenStarts[0] }];
-const reward = state.orders[0].completionReward;
-const beforeCommon = state.inventory.gears.common;
-assert.equal(api.applyOrderReward(state.orders[0]), true);
-assert.equal(state.inventory.gears.common, beforeCommon + 110);
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national')).gears)), {}, 'zero drops are possible');
+math.random = () => .5;
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'normal', null, 10, 10)).gears)), { common: 2 }, 'common two-drop branch');
+math.random = () => .1;
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'normal', null, 105, 10)).gears)), { common: 11, uncommon: 1 }, 'partial blocks are rolled proportionally');
+math.random = () => .9;
+assert.deepEqual(JSON.parse(JSON.stringify(api.makeCompletionReward(order('national', 'normal', null, 105, 10)).gears)), {}, 'partial blocks can miss');
+math.random = () => 0;
+const completed = { id: 'A-9000', ...order('national'), completionReward: api.makeCompletionReward(order('national')) };
+state.orders = [completed];
+assert.equal(api.applyOrderReward(completed), true);
+assert.equal(state.inventory.gears.common, 20);
 api.save();
 const reloaded = api.loadGame();
 api.setGame(reloaded);
 assert.equal(api.applyOrderReward(reloaded.orders[0]), false, 'claim only once after reload');
-assert.equal(reloaded.inventory.gears.common, beforeCommon + 110);
-assert.deepEqual(JSON.parse(JSON.stringify(reloaded.orders[0].completionReward.gears)), { common: 110 }, 'loot unchanged after reload');
-
-math.random = () => .5;
-reloaded.inventory.gears.common = 0;
-reloaded.trucks[1].rarityLevel = 0;
-reloaded.orders = Array.from({ length: 10 }, (_, i) => ({ id: `A-start-${i}`, ...order('city'), completionReward: api.makeCompletionReward(order('city')) }));
-for (const starter of reloaded.orders) assert.equal(api.applyOrderReward(starter), true);
-assert.equal(reloaded.inventory.gears.common, 1000, 'ten starter jobs without bonuses fund Common 1 at midpoint');
-api.upgradeTruckRarity(reloaded.trucks[1].id);
-assert.equal(reloaded.trucks[1].rarityLevel, 1);
-assert.equal(reloaded.inventory.gears.common, 0);
-
-math.random = Math.random;
+assert.equal(reloaded.inventory.gears.common, 20);
 const touring = api.newGame('hamburg');
 api.setGame(touring);
-touring.trucks[0].capacity = 1;
-const active = { ...touring.orders[0], category: 'city', customer: null, routeType: null, distance: 8, volume: 2, delivered: 0, status: 'active', truckId: touring.trucks[0].id, tripCargo: 1, tripStartAt: 0 };
+touring.trucks[0].capacity = 4;
+const active = { ...order('national', 'normal', null, 8, 2), id: 'A-tour', delivered: 0, status: 'active', truckId: touring.trucks[0].id, tripCargo: 2, tripStartAt: 0 };
 touring.orders = [active];
-math.random = () => .999999;
-assert.equal(api.settleTrips(9_000), true);
-assert.equal(active.delivered, 1);
-assert.equal(active.completionReward, null, 'no gear per tour');
-assert.equal(touring.inventory.gears.common, 0);
-assert.equal(api.settleTrips(18_000), true);
+api.settleTrips(20_000);
 assert.equal(active.status, 'completed');
-assert.equal(active.completionReward.gears.common, 110);
+assert.deepEqual(JSON.parse(JSON.stringify(active.completionReward.gears)), { common: 1, uncommon: 1 });
 assert.equal(touring.inventory.gears.common, 0, 'loot waits for claim');
-const fixedReward = JSON.stringify(active.completionReward);
-math.random = () => 0;
-const touringReloaded = api.loadGame();
-assert.equal(JSON.stringify(touringReloaded.orders[0].completionReward), fixedReward, 'completed loot not rerolled after reload');
-api.setGame(touringReloaded);
-assert.equal(api.applyOrderReward(touringReloaded.orders[0]), true);
-assert.equal(touringReloaded.inventory.gears.common, 110);
+api.applyOrderReward(active);
+assert.equal(touring.inventory.gears.common, 1);
 
-math.random = Math.random;
 const old = api.newGame('hamburg');
 old.version = 31;
 old.trucks[0].rarityLevel = 23;
@@ -128,7 +97,7 @@ old.inventory.gears.rare = 17;
 old.orders = [{ id: 'A-old', ...order('national'), completionReward: { coins: 2, gear: 'rare', capacityModule: false, claimedAt: null } }];
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 35);
+assert.equal(migrated.version, 37);
 assert.equal(migrated.trucks[0].rarityLevel, 23);
 assert.equal(migrated.inventory.gears.rare, 17);
 assert.deepEqual(JSON.parse(JSON.stringify(migrated.orders[0].completionReward.gears)), { rare: 1 });
