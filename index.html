@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142c28">
+  <title>Frachtwerk – Transportspiel</title>
+  <meta name="description" content="Ein lokales Transportspiel: LKW kaufen, Aufträge zuweisen und eine Spedition aufbauen.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard" aria-label="Frachtwerk Startseite"><span class="brand-mark">F<span class="brand-mark-dot">.</span></span><span>FRACHTWERK<small>DEINE SPEDITION</small></span></a>
+      <div class="sidebar-label">SPIELBEREICH</div>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <button class="nav-link active" data-view="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
+        <button class="nav-link" data-view="orders"><span class="nav-icon">▤</span> Aufträge <span class="nav-count" id="nav-order-count">0</span></button>
+        <button class="nav-link" data-view="special"><span class="nav-icon">✦</span> Sonderfahrten</button>
+        <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span> Garage</button>
+        <button class="nav-link" data-view="dealer"><span class="nav-icon">🚚</span> Händler</button>
+        <button class="nav-link" data-view="hub"><span class="nav-icon">⌖</span> Stadthub</button>
+        <button class="nav-link" data-view="inventory"><span class="nav-icon">▣</span> Vorräte</button>
+        <button class="nav-link" data-view="company"><span class="nav-icon">▧</span> Firma</button>
+        <button class="nav-link" data-view="personnel"><span class="nav-icon">♙</span> Personal</button>
+        <button class="nav-link" data-view="statistics"><span class="nav-icon">▥</span> Statistiken</button>
+        <button class="nav-link" data-view="customers"><span class="nav-icon">◎</span> Stammdaten</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="sidebar-rule"></div><div class="sidebar-status"><span class="live-dot"></span> Lokales Spiel <small>Fortschritt wird im Browser gespeichert</small></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div class="topbar-metrics" aria-label="Spielstand"><div class="topbar-metric"><span>GUTHABEN</span><strong id="topbar-coins">0 M</strong></div><div class="topbar-metric"><span>LEVEL</span><strong id="topbar-level">1</strong></div></div><div class="topbar-right"><span class="clock-icon">◷</span><span id="game-clock">--:--:--</span><span class="topbar-separator"></span><span class="avatar">SP</span><span class="profile-name">Meine Spedition</span></div></header>
+      <div class="content">
+        <div id="view-dashboard" class="view active">
+          <div class="page-heading"><div><div class="eyebrow">DEIN UNTERNEHMEN</div><h1>Dashboard<span class="heading-dot">.</span></h1></div><div class="dashboard-actions"><button type="button" class="button button-primary" id="test-coins-button" title="Dem aktuellen Spielstand 50.000 Testmünzen gutschreiben">+50.000 M (Test)</button><button class="button button-outline" id="reset-button" title="Lokalen Spielstand zurücksetzen">Spielstand zurücksetzen</button></div></div>
+          <div class="dashboard-stats">
+            <article class="stat-card"><div class="stat-head"><span>HAUPTSITZ</span><span class="stat-symbol hq-symbol">⌖</span></div><div class="stat-value hq-value" id="stat-headquarters">–</div><div class="stat-foot" id="stat-headquarters-country">Startort auswählen</div></article>
+            <article class="stat-card"><div class="stat-head"><span>AKTIVE TRANSPORTE</span><span class="stat-symbol truck-symbol">↗</span></div><div class="stat-value" id="stat-active">0</div><div class="stat-foot" id="stat-fleet">0 Fahrzeuge in den Garagen</div></article>
+            <article class="stat-card km-card"><div class="stat-head"><span>TRANSPORTSÄTZE</span><span id="stat-km-location">–</span></div><div class="km-card-values"><div><span>Fahrzeug / km</span><strong id="stat-km-cost">–</strong></div><div><span>Fracht / tkm</span><strong id="stat-km-pay">1,00 M</strong></div><div id="stat-km-balance-row"><span>Lastkosten / tkm</span><strong id="stat-km-balance">0,10 M</strong></div></div><div class="stat-foot km-card-note">Fahrzeugkosten hängen vom LKW ab. tkm = Tonne × Kilometer.</div></article>
+          </div>
+          <div class="dashboard-grid"><section class="panel"><div class="section-head"><h2>Freie LKW</h2><button class="text-button" data-go="fleet">Zur Garage <span>↗</span></button></div><div id="idle-trucks-list"></div></section><section class="panel completed-panel"><div class="section-head"><h2>Auftragsprämien</h2><button type="button" class="button button-outline collect-all-button" id="collect-all-rewards" disabled>Alles sammeln</button></div><div id="completed-orders-list"></div></section></div>
+        </div>
+
+        <div id="view-orders" class="view"><div class="page-heading"><div><h1>Aufträge<span class="heading-dot">.</span></h1></div><div class="refresh-controls"><div class="refresh-timer">Automatisch neue Angebote in <strong id="order-refresh-countdown">15:00</strong></div><button class="button button-primary" id="refresh-orders">↻ Neue Angebote · 50 M</button></div></div><div id="category-filters" class="category-filters"></div><div id="orders-list" class="orders-list"></div></div>
+        <div id="view-special" class="view"><div class="page-heading"><div><h1>Sonderfahrten<span class="heading-dot">.</span></h1><p>Gesammelte Fahrten bleiben erhalten, bis du sie einem LKW zuweist.</p></div></div><div id="special-content"></div></div>
+
+        <div id="view-fleet" class="view"><div class="page-heading"><div><h1>Garage<span class="heading-dot">.</span></h1></div></div><div class="fleet-summary"><span id="fleet-summary-text">0 LKW</span><span>Rang bis +25 % Tempo · beladen 1 % langsamer je Tonne</span></div><div id="fleet-list"></div></div>
+
+        <div id="view-dealer" class="view"><div class="page-heading"><div><h1>Händler<span class="heading-dot">.</span></h1></div></div><div class="fleet-summary"><span id="market-capacity-text">0 von 5 regulären LKW-Plätzen belegt</span><span>Reguläre LKW: alle 5 Level ein Platz. Stadttransporter: getrenntes Level-Limit.</span></div><div id="shop-list"></div></div>
+
+        <div id="view-hub" class="view"><div class="page-heading"><div><h1>Stadthub<span class="heading-dot">.</span></h1></div></div><div id="hub-content"></div></div>
+
+        <div id="view-inventory" class="view"><div class="page-heading"><div><div class="eyebrow">DEIN LAGER</div><h1>Vorräte<span class="heading-dot">.</span></h1><p>Materialien und Items deiner Spedition.</p></div></div><div id="inventory-content"></div></div>
+
+        <div id="view-company" class="view">
+          <div class="page-heading"><div><div class="eyebrow">DEINE SPEDITION</div><h1>Firma<span class="heading-dot">.</span></h1><p>Baue die Abteilungen deines Hauptsitzes aus.</p></div></div>
+          <section class="panel hub-preview"><div><div class="eyebrow">VERTEILERZENTRUM</div><h2>Stadthub</h2><p id="hub-capacity-text">0 Stadttransporter im Hub.</p></div><button class="button button-outline" data-go="hub">Stadthub öffnen</button></section>
+          <div class="company-section-heading"><div class="eyebrow">ABTEILUNGEN</div><h2>Ausbau deiner Firma</h2><p id="company-department-intro"></p></div>
+          <div id="company-departments" class="department-grid"></div>
+          <section id="hr-upgrades" class="panel hr-upgrades" hidden>
+            <div class="section-head"><div><div class="eyebrow">PERSONALABTEILUNG</div><h2>Neugestaltung in Vorbereitung</h2></div><span class="pill pill-gray">PAUSIERT</span></div>
+            <p>Einstellungen sind derzeit ausgesetzt. Die Abteilung beeinflusst weder LKW-Plätze noch Betriebskosten. Bereits bezahlte Einstellungen wurden einmalig erstattet.</p>
+          </section>
+          <section id="dispatch-upgrades" class="panel dispatch-upgrades" hidden><div class="section-head"><div><div class="eyebrow">DISPOSITION</div><h2>Auftragslisten ausbauen</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div><p>Jede Stufe fügt landesweiten oder internationalen Aufträgen ein Angebot hinzu. Höchstwert: Stufe 5 und damit 10 Angebote.</p><div id="dispatch-upgrade-list" class="offer-upgrade-grid"></div></section>
+          <section id="workshop-upgrades" class="panel workshop-upgrades" hidden>
+            <div class="section-head"><div><div class="eyebrow">WERKSTATT</div><h2>Betriebskosten senken</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div>
+            <p>Jede Stufe senkt den Fahrzeugpreis um 0,001 M pro Kilometer. Bei Stufe 50 sparst du 0,05 M je gefahrenem Kilometer und LKW.</p>
+            <div class="workshop-values"><strong id="workshop-rate">0,00 M / km Rabatt</strong><span id="workshop-level">Stufe 0 / 50</span><span id="workshop-discount">Gilt für alle Fahrzeugmodelle</span></div>
+            <div class="upgrade-pips" id="workshop-pips"></div>
+            <button class="button button-primary" id="workshop-upgrade-button" data-upgrade-workshop>Nächste Stufe · 100 M</button>
+          </section>
+          <section id="sales-upgrades" class="panel sales-upgrades" hidden>
+            <div class="section-head"><div><div class="eyebrow">VERTRIEB &amp; KUNDENBETREUUNG</div><h2>Aufträge anheften</h2></div><span class="pill pill-green">FREIGESCHALTET</span></div>
+            <p>Jede Stufe erlaubt einen weiteren angehefteten Auftrag. Diese Angebote bleiben bei automatischen und manuellen Aktualisierungen bestehen, bis du sie löst oder einem LKW zuweist.</p>
+            <div class="sales-values"><strong id="sales-level">Stufe 0 / 3</strong><span id="sales-pin-count">0 / 0 angeheftet</span></div>
+            <div class="upgrade-pips" id="sales-pips"></div>
+            <button class="button button-primary" id="sales-upgrade-button" data-upgrade-sales>Stufe 1 freischalten · 500 M</button>
+          </section>
+        </div>
+
+        <div id="view-personnel" class="view"><div class="page-heading"><div><div class="eyebrow">DEIN FÜHRUNGSTEAM</div><h1>Personal<span class="heading-dot">.</span></h1><p>Vorschau auf künftige Charakterkarten. Erwerb, Aktivierung und Boni folgen später.</p></div></div><section class="panel personnel-team"><div class="section-head"><div><div class="eyebrow">FÜHRUNGSTEAM</div><h2>Aktive Karten</h2></div><span class="pill pill-gray">0 / 5 Plätze</span></div><div class="personnel-slots"><div>Platz 1 <strong>Frei</strong></div><div>Platz 2 <strong>Frei</strong></div><div>Platz 3 <strong>Frei</strong></div><div>Platz 4 <strong>Frei</strong></div><div>Platz 5 <strong>Frei</strong></div></div><p>Die fünf Plätze sind vorbereitet. Karten können derzeit noch nicht aktiviert werden.</p></section><div class="company-section-heading"><div class="eyebrow">KARTENSAMMLUNG · VORSCHAU</div><h2>Beispielkarten</h2><p>Diese Figuren zeigen nur die geplante Darstellung. Herkunft und Fähigkeiten sind noch offen.</p></div><div class="personnel-cards"><article class="personnel-card"><span class="pill pill-gray">BEISPIEL</span><div class="personnel-portrait">ML</div><h3>Mara Linden</h3><p>Charakterentwurf · Fähigkeiten offen</p></article><article class="personnel-card"><span class="pill pill-gray">BEISPIEL</span><div class="personnel-portrait">IK</div><h3>Idris Kaya</h3><p>Charakterentwurf · Fähigkeiten offen</p></article><article class="personnel-card"><span class="pill pill-gray">BEISPIEL</span><div class="personnel-portrait">SN</div><h3>Sofia Neumann</h3><p>Charakterentwurf · Fähigkeiten offen</p></article></div></div>
+
+        <div id="view-statistics" class="view"><div class="page-heading"><div><div class="eyebrow">DEINE BILANZ</div><h1>Statistiken<span class="heading-dot">.</span></h1><p>Alle Werte zählen seit Beginn dieses Spielstands.</p></div></div><div id="statistics-grid" class="statistics-grid"></div><section class="panel statistics-panel"><div class="section-head"><div><div class="eyebrow">MÜNZENBILANZ</div><h2>Wohin die Münzen fließen</h2></div></div><div id="finance-list"></div></section><div class="info-strip statistics-note"><span class="info-icon">i</span><span>CO₂ ist eine grobe Spielschätzung: beladene Tonnenkilometer × 52,75 g CO₂/tkm. Leere Rückfahrten werden bei dieser CO₂-Schätzung nicht berücksichtigt. <a href="https://climate-energy.eea.europa.eu/topics/transport/emissions-from-heavy-duty-vehicles/intro" target="_blank" rel="noopener noreferrer">EEA-Referenzwert</a>.</span></div></div>
+
+        <div id="view-customers" class="view"><div class="page-heading"><div><div class="eyebrow">GESCHÄFTSBEZIEHUNGEN</div><h1>Stammdaten<span class="heading-dot">.</span></h1><p>Alle Stammkunden sind von Anfang an verfügbar.</p></div></div><div class="info-strip"><span class="info-icon">i</span><span>Jeder Kunde startet bei Vertrauenslevel 0. Pro Aufstieg erhältst du einen Fähigkeitspunkt für Vergütung, Sonderfahrtchance oder Empfehlungschance.</span></div><div id="customer-list" class="customer-grid"></div></div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="start-dialog" class="dialog start-dialog" aria-labelledby="start-title"><div class="eyebrow">DEINE SPEDITION</div><h2 id="start-title">Wähle deinen Startort</h2><p>Von hier aus entstehen regionale und internationale LKW-Routen. Den Stadthub kannst du anschließend kostenlos eröffnen. Die Wahl gilt für diesen Spielstand.</p><div id="start-city-list" class="start-city-list"></div></dialog>
+  <dialog id="department-dialog" class="dialog department-dialog" aria-labelledby="department-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow" id="department-dialog-location"></div><h2 id="department-dialog-title">Abteilung ausbauen</h2></div><button type="button" class="truck-dialog-close" id="close-department-dialog" aria-label="Schließen">×</button></div><div id="department-locked-content"></div><div id="department-detail-content"></div></dialog>
+  <dialog id="assign-dialog" class="dialog"><form method="dialog"><button class="dialog-close" aria-label="Schließen">×</button><div class="eyebrow">AUFTRAG ZUWEISEN</div><h2 id="assign-title">Auftrag</h2><p id="assign-description"></p><div id="assign-vehicles" class="assign-vehicles"></div><button class="button button-outline dialog-cancel" value="cancel">Abbrechen</button></form></dialog>
+  <dialog id="truck-dialog" class="dialog truck-dialog" aria-labelledby="truck-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow">FAHRZEUGDETAILS</div><h2 id="truck-dialog-title">LKW</h2></div><button type="button" class="truck-dialog-close" id="close-truck-dialog" aria-label="Schließen">×</button></div><div id="truck-dialog-content"></div></dialog>
+  <dialog id="reward-dialog" class="dialog reward-dialog" aria-labelledby="reward-dialog-title"><div class="truck-dialog-header"><div><div class="eyebrow">AUFTRAGSPRÄMIE</div><h2 id="reward-dialog-title">Auftrag abgeschlossen</h2></div><button type="button" class="truck-dialog-close" id="close-reward-dialog" aria-label="Schließen">×</button></div><div id="reward-dialog-content"></div><button type="button" class="button button-primary reward-done" id="reward-done-button">Schließen</button></dialog>
+  <dialog id="bulk-reward-dialog" class="dialog reward-dialog" aria-labelledby="bulk-reward-title"><div class="truck-dialog-header"><div><div class="eyebrow">AUFTRAGSPRÄMIEN</div><h2 id="bulk-reward-title">Alle Prämien sammeln</h2></div><button type="button" class="truck-dialog-close" id="close-bulk-reward" aria-label="Schließen">×</button></div><div id="bulk-reward-content"></div><div class="bulk-reward-actions"><button type="button" class="button button-outline" id="cancel-bulk-reward">Abbrechen</button><button type="button" class="button button-primary" id="confirm-bulk-reward">Bestätigen</button></div></dialog>
+  <script src="app.js" defer></script>
+</body>
+</html>

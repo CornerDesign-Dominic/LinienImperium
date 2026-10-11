@@ -1,0 +1,153 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+
+const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const beforeEvents = source.slice(0, source.indexOf("  document.addEventListener('click'"));
+assert.ok(beforeEvents.length > 1000, 'application entry point found');
+const storage = new Map();
+const context = vm.createContext({
+  localStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
+  Date, Math, Intl, Number, JSON, setTimeout, clearTimeout,
+  document: { querySelector: () => null }
+});
+vm.runInContext(beforeEvents + '\n globalThis.testApi = { TRUCKS, newGame, truckSpeed, tourSeconds, orderDuration, estimatedProfit, estimatedProfitPerMinute, canTruckTakeOrder, buyTruck, loadGame, replenishOrders, upgradeOfferLimit, setGame: value => { game = value; }, disableRendering: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
+const api = context.testApi;
+const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} !== ${expected}`);
+
+const state = api.newGame('hamburg');
+api.setGame(state);
+assert.equal(state.version, 35);
+assert.equal(state.coins, 1000);
+assert.equal(state.startingCoins, 1000);
+assert.deepEqual(Array.from(api.TRUCKS, truck => truck.capacity), [1, 1.5, 4, 8.5, 18]);
+assert.deepEqual(Array.from(state.trucks, truck => truck.capacity), [4]);
+assert.deepEqual(Array.from(state.trucks, truck => truck.id), ['LKW-01']);
+assert.equal(state.nextTruck, 2);
+assert.equal(state.stats.truckSpent, 0);
+for (const category of ['national', 'international']) {
+  assert.equal(state.orders.filter(order => order.category === category && order.status === 'available').length, 5, `${category} has five offers at level 1`);
+}
+assert.equal(api.canTruckTakeOrder({ tier: 0 }, { category: 'city' }), true);
+assert.equal(api.canTruckTakeOrder({ tier: 0 }, { category: 'national' }), false);
+assert.equal(api.canTruckTakeOrder({ tier: 2 }, { category: 'national' }), true);
+assert.equal(api.canTruckTakeOrder(state.trucks[0], { category: 'national' }), true);
+assert.equal(api.canTruckTakeOrder(state.trucks[0], { category: 'international' }), false);
+api.disableRendering();
+const existing = api.newGame('hamburg');
+existing.orders = existing.orders.filter(order => order.category === 'city');
+api.setGame(existing);
+api.replenishOrders();
+assert.equal(existing.orders.filter(order => order.category === 'national').length, 5, 'existing level-1 save gains national offers');
+assert.equal(existing.orders.filter(order => order.category === 'international').length, 5, 'existing level-1 save gains international offers');
+existing.company.departments.dispatch = true;
+existing.coins = 1000;
+api.upgradeOfferLimit('international');
+assert.equal(existing.company.offerLevels.international, 1, 'international offers can be expanded at level 1');
+assert.equal(existing.orders.filter(order => order.category === 'international').length, 6);
+api.setGame(state);
+state.coins = 5000;
+api.buyTruck(4);
+assert.equal(state.trucks[1].tier, 4, '18-t truck can be purchased at player level 1');
+assert.equal(state.trucks[1].capacity, 18);
+assert.equal(state.trucks[1].id, 'LKW-02');
+assert.equal(state.coins, 1000);
+const truck = { id: 'LKW-01', branchId: 'hamburg', tier: 4, capacity: 18, rarityLevel: 50 };
+for (const [level, emptySpeed] of [[0, 1], [10, 1.05], [20, 1.10], [30, 1.15], [40, 1.20], [50, 1.25]]) {
+  truck.rarityLevel = level;
+  near(api.truckSpeed(truck), emptySpeed);
+}
+near(api.truckSpeed(truck, 18), 1.025);
+near(api.truckSpeed(truck), 1.25);
+const order = { category: 'national', routeType: 'single', distance: 100, volume: 18, delivered: 0, customer: null, homeCity: 'hamburg' };
+near(api.tourSeconds(order, truck, 18), 100 / 1.025 + 100 / 1.25);
+const rankedDuration = api.orderDuration(order, truck);
+const rankedProfit = api.estimatedProfit(order, truck);
+const rankedRate = api.estimatedProfitPerMinute(order, truck);
+truck.rarityLevel = 0;
+near(api.truckSpeed(truck, 18), .82);
+assert.ok(api.orderDuration(order, truck) > rankedDuration);
+near(api.estimatedProfit(order, truck), rankedProfit);
+near(api.estimatedProfitPerMinute(order, truck), rankedProfit * 60 / api.orderDuration(order, truck));
+assert.notEqual(api.estimatedProfitPerMinute(order, truck), rankedRate);
+truck.rarityLevel = 50;
+truck.speedLevel = 10;
+near(api.truckSpeed(truck), 1.25);
+near(api.truckSpeed(truck, 18), 1.025);
+
+const previous = api.newGame('hamburg');
+previous.version = 29;
+previous.trucks.push({ id: 'LKW-02', tier: 1, model: 'Stadtlaster', capacity: 1.5, rarityLevel: 0 });
+previous.trucks[0].capacity = 4;
+previous.trucks[1].capacity = 8;
+previous.orders[0].status = 'active';
+previous.orders[0].truckId = previous.trucks[0].id;
+previous.orders[0].tripCargo = 4;
+storage.set('frachtwerk-save-v2', JSON.stringify(previous));
+const updated = api.loadGame();
+assert.equal(updated.version, 35);
+assert.deepEqual(Array.from(updated.trucks, item => item.capacity), [4, 1.5]);
+assert.equal(updated.orders[0].tripCargo, 4, 'current load fits the new truck capacity');
+assert.equal(api.loadGame().orders[0].tripCargo, 4, 'capacity migration runs only once');
+
+const legacy = api.newGame('hamburg');
+legacy.trucks = [];
+legacy.nextTruck = 1;
+legacy.version = 26;
+legacy.branches = ['hamburg', 'antwerp'];
+legacy.activeBranch = 'antwerp';
+legacy.branchCompanies = {
+  hamburg: { departments: { workshop: true }, offerLevels: { city: 1, national: 0, international: 0 }, workshopLevel: 2, salesLevel: 0, employees: 1 },
+  antwerp: { departments: { hr: true, sales: true }, offerLevels: { city: 0, national: 0, international: 0 }, workshopLevel: 0, salesLevel: 1, employees: 2 }
+};
+delete legacy.company;
+delete legacy.hubs;
+legacy.coins = 1000;
+legacy.stats.upgradeSpent = 100;
+legacy.stats.vehicleUnlockSpent = 200;
+legacy.stats.branchSpent = 10000;
+legacy.trucks.push({ ...truck, rarityLevel: 20, speedLevel: 4, capacityLevel: 1, capacity: 23 });
+legacy.branchCompanies.hamburg.vehicleUnlocks = { speed: 4, capacity: 1 };
+legacy.trucks.push({ id: 'LKW-02', branchId: 'antwerp', tier: 0, capacity: 4, rarityLevel: 0 });
+legacy.orders.push({ id: 'A-1000', category: 'city', status: 'available', homeCity: 'antwerp' });
+legacy.orders.push({ id: 'A-1001', category: 'city', status: 'active', homeCity: 'antwerp', truckId: 'LKW-02', volume: 10, delivered: 0, tripCargo: 4, distance: 8 });
+legacy.orders[0].status = 'active';
+legacy.orders[0].truckId = truck.id;
+legacy.orders[0].tripCargo = 23;
+storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
+const migrated = api.loadGame();
+assert.equal(migrated.version, 35);
+assert.equal(migrated.manualRefreshCount, 0);
+assert.equal(migrated.coins, 12800);
+assert.equal(migrated.stats.removedUpgradeRefund, 300);
+assert.equal(migrated.stats.removedBranchRefund, 10000);
+assert.equal(migrated.stats.employeeRefund, 1500);
+assert.equal(migrated.stats.upgradeSpent, undefined);
+assert.equal(migrated.stats.vehicleUnlockSpent, undefined);
+assert.equal(migrated.trucks[0].rarityLevel, 20);
+assert.equal(migrated.trucks[0].capacity, 18);
+assert.equal(migrated.trucks[0].speedLevel, undefined);
+assert.equal(migrated.trucks[0].capacityLevel, undefined);
+assert.equal(migrated.branchCompanies, undefined);
+assert.equal(migrated.branches, undefined);
+assert.equal(migrated.activeBranch, undefined);
+assert.equal(migrated.trucks[1].branchId, undefined);
+assert.equal(migrated.company.employees, 0);
+assert.equal(migrated.company.workshopLevel, 2);
+assert.equal(migrated.company.salesLevel, 1);
+assert.equal(migrated.orders.some(order => order.id === 'A-1000'), false);
+assert.equal(migrated.orders.find(order => order.id === 'A-1001').homeCity, 'hamburg');
+assert.equal(migrated.orders[0].tripCargo, 18);
+assert.equal(api.loadGame().coins, 12800, 'refund is applied only once');
+const older = api.newGame('hamburg');
+older.trucks = [];
+older.version = 25;
+older.branches = ['hamburg'];
+older.activeBranch = 'hamburg';
+older.branchCompanies = { hamburg: older.company };
+delete older.company;
+older.trucks.push({ ...truck, rarityLevel: 30, capacity: 23, capacityLevel: 1 });
+storage.set('frachtwerk-save-v2', JSON.stringify(older));
+assert.equal(api.loadGame().trucks[0].capacity, 18);
+console.log('new game trucks, level-free offers and purchase, national eligibility and legacy migration: OK');
