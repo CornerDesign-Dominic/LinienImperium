@@ -1,0 +1,68 @@
+const assert=require('node:assert/strict');
+const E=require('../expeditions.js');
+const make=()=>({xp:0,orders:[],customerTrust:{},trucks:[{id:'t1',tier:2},{id:'t2',tier:2}],inventory:{capacityModules:0,gears:Object.fromEntries(E.RARITIES.map(r=>[r,0]))}});
+const seq=(...values)=>{let i=0;return()=>values[i++%values.length];};
+const g=make(), e=E.ensure(g,0,1);
+assert.equal(e.points,50);assert.equal(E.capacity(e),50);
+assert.equal(E.discover(g,1,0),false,'regions unlock in sequence');
+assert.equal(E.discover(g,0,0),true);assert.equal(e.regions[0].discovered,1);
+assert.equal(E.assign(g,'r1-place-1','t1',0),true);
+assert.equal(E.assign(g,'r1-place-1','t2',0),false,'no duplicate assignment');
+assert.equal(E.busy(e,'t1'),true);assert.equal(E.eligible(g,'t1'),false);
+E.sync(g,7200000,1);
+assert.equal(E.busy(e,'t1'),false,'truck released on completion');
+assert.equal(E.claim(g,'r1-place-1'),true);assert.equal(E.capacity(e),51);
+assert.equal(E.claim(g,'r1-place-1'),false,'capacity reward exactly once');
+e.points=1000;
+for(let i=1;i<7;i++)assert.equal(E.discover(g,0,7200000),true);
+assert.equal(e.regions[0].missions.filter(m=>m.status==='queued').length,6);
+assert.equal(E.discover(g,0,7200000),true,'endless unlock without optional deliveries');
+assert.equal(g.inventory.capacityModules,1);assert.ok(e.unlockedCustomers.includes('nordbau'));
+assert.equal(E.discover(g,0),false);assert.equal(g.inventory.capacityModules,1);
+assert.equal(E.discover(g,1),true,'next region reachable');
+const c=E.explore(g,0,0,seq(.019,.01));assert.equal(c.character,'navigator');
+assert.equal(e.characters.navigator.level,1);
+const duplicate=E.explore(g,0,0,seq(.019,.01));assert.equal(duplicate.duplicate,true);assert.equal(e.shards.common,10);
+const j=E.explore(g,0,0,seq(.02,.5,.5,.5,.5,.5));assert.equal(j.type,'material');assert.equal(j.stage,1);
+assert.equal(E.claim(g,j.id),false,'uncompleted jobs cannot be claimed');
+assert.equal(E.assign(g,j.id,'t1',0),true);
+const j2=E.explore(g,0,0,()=>.5);assert.equal(E.assign(g,j2.id,'t1',0),false);
+assert.equal(E.assign(g,j2.id,'t2',0),true,'parallel jobs allowed');
+E.sync(g,300000,1);const before=g.inventory.gears[j.reward.gears.rarity];
+assert.equal(E.claim(g,j.id),true);assert.equal(g.inventory.gears[j.reward.gears.rarity],before+j.reward.gears.count);
+assert.equal(E.claim(g,j.id),false);
+const saved=JSON.parse(JSON.stringify(g));E.ensure(saved,300000,1);assert.equal(E.claim(saved,j.id),false,'reload cannot double-claim');
+// Test every rarity boundary across stages for both package tables.
+for(const type of ['material','shard'])for(let stage=1;stage<=3;stage++) {
+ const def=E.REGIONS[4], oldTypes=def.types,oldStages=def.stages;
+ def.types=E.TYPES.map(t=>t===type?1:0);def.stages=[1,2,3].map(n=>n===stage?1:0);
+ const table=(type==='material'?E.MATERIAL:E.SHARDS)[stage-1];let sum=0;
+ for(let i=0;i<table.length;i++) {
+  const trial=make(),te=E.ensure(trial,0,1);te.regions[4].endless=true;te.points=50;
+  const rarityRoll=sum+table[i][0]/2;sum+=table[i][0];
+  const job=E.explore(trial,4,0,seq(.5,.5,.5,rarityRoll,.5,.5));
+  const reward=job.reward[type==='material'?'gears':'shards'];
+  assert.equal(reward.rarity,E.RARITIES[i]);assert.ok(reward.count>=table[i][1]&&reward.count<=table[i][2]);
+  assert.ok(E.RARITIES.indexOf(reward.rarity)<=stage+1,'rarity stage cap');
+ }
+ def.types=oldTypes;def.stages=oldStages;
+}
+const r=make(),re=E.ensure(r,0,1);re.points=0;
+E.sync(r,599999,1);assert.equal(re.points,0);
+E.sync(r,600000,1);assert.equal(re.points,1);
+E.sync(r,600000*100,1);assert.equal(re.points,50,'regen capped');
+E.sync(r,600000*100,3);assert.equal(re.points,150,'50 per gained level even over cap');
+E.sync(r,600000*200,3);assert.equal(re.points,150,'no regen above cap or repeat refill');
+re.regions[0].endless=true;E.explore(r,0,600000*200,()=>.5);assert.equal(re.points,145);
+re.points=0;re.regenAt=600000*200;E.sync(r,600000*201,3);assert.equal(re.points,1,'no banked above-cap regen');
+re.characters.navigator={level:1,progress:0};re.shards.common=9;
+assert.equal(E.feed(re,'navigator',3),true);assert.equal(re.characters.navigator.progress,3);assert.equal(re.shards.common,6);
+re.shards.common=20;E.feed(re,'navigator',100);assert.equal(re.characters.navigator.level,2);assert.equal(re.shards.common,13,'only spend remaining needed');
+assert.equal(E.seat(re,'navigator',0,0),true);assert.equal(E.bonus(re,'speed'),.015);
+E.seat(re,'navigator',1,0);assert.equal(re.seats.filter(s=>s==='navigator').length,1);
+assert.equal(E.seat(re,'unknown',2),false);
+re.shards.common=10;assert.equal(E.convert(re,'common'),true);assert.equal(re.shards.common,0);assert.equal(re.shards.uncommon,1);
+re.shards.legendary=1;E.convertLegendary(re);assert.equal(re.shards.epic,10);
+const legacy=make();legacy.customerTrust.nordbau=10;legacy.orders.push({status:'active',customer:'frischgut'});
+E.ensure(legacy,0,12,true);assert.deepEqual(legacy.expeditions.unlockedCustomers,['frischgut','nordbau']);assert.equal(legacy.expeditions.lastLevel,12);
+console.log('expeditions: progression, optional missions, parallel trucks, stage caps, refills, shards, characters and reload: OK');

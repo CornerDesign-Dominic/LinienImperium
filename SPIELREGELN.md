@@ -41,7 +41,7 @@ Für den Aufstieg von Level `L` auf `L + 1` werden `100 × L` weitere Spieler-XP
 | 12 | 6.600 |
 | 17 | 13.600 |
 
-Landesweite und internationale Aufträge sind von Anfang an verfügbar. Stammkunden sind ohne Spielerlevel-Sperre verfügbar.
+Landesweite und internationale Aufträge sind von Anfang an verfügbar. Stammkunden werden durch den Endlosort ihrer Region freigeschaltet.
 
 ## 3. LKW und erlaubte Auftragsarten
 
@@ -150,7 +150,7 @@ Eine Stichprobe mit den hinterlegten Routen und der aktuellen Fahrzeitformel erg
 
 ## 6. Kunden und Vertrauen
 
-Alle fünf Kunden stehen von Anfang an in den Stammdaten. Spielerlevel sperrt weder Kunden noch Kundenskills. Neue normale Kundenangebote erscheinen ausschließlich landesweit und international; Nordbau kann nun landesweit erscheinen.
+Neue Spielstände starten ohne Stammkunden. Jede Region schaltet beim Erschließen ihres Endlosorts einen Kunden frei; optionale Ortsmissionen sind dafür nicht nötig. Bereits vorhandene Kundenkontakte alter Spielstände bleiben erhalten. Neue normale Kundenangebote erscheinen ausschließlich landesweit und international; Nordbau kann nun landesweit erscheinen.
 
 | Kunde | Auftragsart | Typische Fracht |
 | --- | --- | --- |
@@ -208,7 +208,7 @@ Ein Vertriebsausbau kostet vorläufig `5 × Zielstufe` **Lieferantenkontakte**, 
 
 **Disposition, Werkstatt und Vertrieb kosten jeweils einmalig 5.000 M.** Buchhaltung, Fuhrpark und Lager bleiben bis zur Festlegung ihrer Funktionen gesperrt.
 
-Die **Personalabteilung** ist bis zu ihrer Neugestaltung pausiert. Neue Einstellungen und Freischaltungen sind gesperrt. Vorhandene bezahlte Einstellungen werden beim Laden eines alten Spielstands einmalig erstattet; die Erstattung erscheint in der Münzenbilanz. Frühere Mitarbeitende geben weder LKW-Plätze noch einen Aufschlag auf Kilometerkosten. Bereits freigeschaltete Personalabteilungen bleiben als Fortschritt gespeichert. Das neue Navigationsmodul **Personal** ist unabhängig davon: Es zeigt eine Kartensammlung mit drei ausdrücklich als Beispiele markierten Figuren und genau fünf vorbereiteten Plätzen im Führungsteam. Erwerb, Aktivierung, Duplikat-Level und Bonuswirkungen sind noch nicht eingebaut.
+Die **Personalabteilung** ist bis zu ihrer Neugestaltung pausiert. Neue Einstellungen und Freischaltungen sind gesperrt. Vorhandene bezahlte Einstellungen werden beim Laden eines alten Spielstands einmalig erstattet; die Erstattung erscheint in der Münzenbilanz. Frühere Mitarbeitende geben weder LKW-Plätze noch einen Aufschlag auf Kilometerkosten. Bereits freigeschaltete Personalabteilungen bleiben als Fortschritt gespeichert. Das neue Navigationsmodul **Personal** ist unabhängig davon: Es zeigt fünf spielbare Testcharaktere und fünf aktive Teamsitze. Direkte Expeditionsfunde, fünf Teamsitze, universelle Shards und aktive Boni sind nun als Testmechanik implementiert.
 
 Der **Vertrieb** startet nach der Freischaltung auf Stufe 0. Seine drei Ausbaustufen erhöhen die Zahl gleichzeitig anheftbarer Aufträge auf **1, 2 oder 3**. Die Stufen kosten vorläufig **500 M**, **1.000 M** und **1.500 M**. Das Limit gilt über Landesweit und International zusammen. Angeheftete Angebote bleiben bei automatischen und manuellen Angebotswechseln erhalten. Wird ein solches Angebot zugewiesen, wird der Pin frei.
 
@@ -273,3 +273,75 @@ Der Münzerlös beträgt bei 0 gefahrenen Kilometern 95 % des maßgeblichen Kauf
 Je Seltenheit werden zunächst alle Zahnräder der erreichten Rangstufen addiert. Davon werden einmalig 50 % berechnet und auf ganze Zahnräder **abgerundet**. Es gibt keinen zusätzlichen Rangbonus in Münzen. Eingebaute Kapazitätsmodule (1 bei erster Stufe, insgesamt 4 bei zweiter Stufe) gehen endgültig verloren. Der Verkaufsdialog zeigt Münzen, Zahnräder jeder Seltenheit und verlorene Module vor der endgültigen Bestätigung. Ein neu gekauftes Fahrzeug beginnt wieder bei Rangstufe 0.
 
 Fahrzeugdetails zeigen gefahrene Kilometer sowie abgeschlossene Touren und Aufträge. Bei älteren Spielständen werden diese Werte aus den noch vorhandenen, dem Fahrzeug zugeordneten Aufträgen soweit möglich rekonstruiert. Bereits entfernte Aufträge und frühere pauschale Stadthub-Leistung lassen sich keinem einzelnen Fahrzeug zuverlässig zuordnen und erscheinen daher nicht in dessen Zähler. Neue, im Stadthub vollendete Hin- und Rückfahrten zählen je Fahrzeug mit 24 km als Tour; sie zählen nicht als abgeschlossene Einzelaufträge.
+
+
+## 10. Expeditionen – Testpilot
+
+Die Regeln sind in `expeditions.js` von der Oberfläche (`expedition-ui.js`) getrennt. Regionennamen, Forschungskosten, Missionstimer, Beutemengen und Charakterwerte sind **vorläufige, zentral anpassbare Testwerte**. Das Thema bleibt unverändert. Firebase, Events, Seasons, Erweiterungspunkte und spezialisierte/Eventshards sind nicht Teil dieses Schritts.
+
+### Punkte und Fortschritt
+
+- Start **50/50 Punkte**; **ein Punkt alle zehn Minuten**; Endlosexpedition **5 Punkte**. Das entspricht 28,8 Aufträgen pro Tag ohne zusätzliche Quellen. Regeneration wird nach Pausen nachberechnet, am Limit angehalten und nicht über das Limit angespart.
+- Jeder künftig erreichte Spielerlevel gibt **+50 Punkte**, auch über das Limit. Mehrere erreichte Level zählen einzeln. Alte Level erhalten keine rückwirkenden Refills. Über dem Limit pausiert die Regeneration.
+- Fünf Regionen mit **sieben Unterorten und einem Endlosort**. Forschung ist sequenziell. Jeder entdeckte Ort öffnet unmittelbar den nächsten Forschungsschritt und eine optionale Transportmission.
+- Optionale Missionen binden einen regulären LKW, dauern Stunden bis Tage und geben beim Abholen genau einmal **+1 maximale Expeditionskapazität**. Sie sperren weder Forschung noch Endlosort oder Folgegebiet. Nach 35 Missionen beträgt das Limit ohne Charakterbonus **85**. Sie erzeugen keinen normalen Tourenumsatz, XP oder Tourenloot.
+- Der Endlosort kostet vorläufig 20 Forschungspunkte nach sieben entdeckten Orten. Er gibt einmalig **ein Kapazitätsmodul**, schaltet einen Kunden und die nächste Region frei. Dafür ist kein zusätzlicher Pflichttransport erforderlich.
+- Kunden je Region: Nordbau, Frischgut, Stahlwerk West, Alpenhandel, EuroLog. Neue Spielstände starten ohne Kunden; Kontakte aus vorhandenen Aufträgen oder mit positivem Vertrauen bleiben bei Migration freigeschaltet.
+- Forschungskosten je Unterort: R1 `5,5,5,10,10,10,15`; R2 `10,10,15,15,20,20,30`; R3 `15,20,20,25,30,30,40`; R4 `20,25,30,35,40,45,45`; R5 `30,35,40,50,60,70,75`.
+- Ortsmissionstimer: R1 2–18 Stunden, R2 4–36, R3 6–48, R4 8–60, R5 12–72; einzelne Werte in `REGIONS`.
+
+### Endlosfunde und Fahrzeuge
+
+**2 % direkter Charakterfund**, sonst **98 % Auftrag**. Direkte Charaktere werden sofort gutgeschrieben. Auftragsbelohnungen werden beim Fund gespeichert, nicht bei Reload neu gewürfelt. Aufträge verfallen nicht. Sie dauern nach bewusster Zuweisung vorläufig 60–180 Sekunden. Beliebig viele freie reguläre LKW dürfen parallel fahren. Die Fahrzeuge sind für andere Aufträge und Verkauf gesperrt, werden bei Abschluss wieder frei und müssen nicht auf das spätere Abholen der Beute warten. Stadthub-Fahrzeuge sind nicht geeignet.
+
+| Region | Shardauftrag | Material | Sonderfahrt | Empfehlung | Stufe 1 / 2 / 3 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 20 % | 75 % | 4,5 % | 0,5 % | 100 / 0 / 0 % |
+| 2 | 40 % | 55 % | 4,5 % | 0,5 % | 70 / 30 / 0 % |
+| 3 | 15 % | 80 % | 4 % | 1 % | 30 / 60 / 10 % |
+| 4 | 35 % | 58 % | 6 % | 1 % | 10 / 65 / 25 % |
+| 5 | 25 % | 68 % | 5,5 % | 1,5 % | 0 / 40 / 60 % |
+
+Art und Stufe werden separat gewürfelt. Die vier Typchancen gelten **innerhalb der 98 %**. Sonderfahrt-/Empfehlungsaufträge liefern einen gespeicherten regulären Auftrag des regionalen Kunden; bestehende Transport-, Vertrauens-, Modul- und Prämienregeln gelten weiter. Die Stufe wird auch an daraus entstehende Empfehlungen vererbt: Stufe 1 keine Epic-/Legendary-Zahnräder, Stufe 2 keine Legendary-Zahnräder, Stufe 3 erlaubt beide. Außerhalb der Expedition gewonnene Sonder-/Empfehlungsfahrten behalten ihre bisherigen Pools. Direkte Charakterfunde unterliegen dem regionalen Charakterpool, nicht dem Auftragsstufenlimit.
+
+### Materialpakete
+
+Genau eine Zahnradseltenheit pro Auftrag, keine Erweiterungspunkte oder zusätzlichen Module.
+
+| Stufe | Common | Uncommon | Rare | Epic | Legendary |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 65 %: 100–200 | 25 %: 10–20 | 10 %: 2–5 | ausgeschlossen | ausgeschlossen |
+| 2 | 60 %: 150–300 | 25 %: 15–30 | 13,2 %: 3–7 | 1,8 %: 1–2 | ausgeschlossen |
+| 3 | 55 %: 200–400 | 28 %: 20–40 | 15 %: 4–10 | 1,8 %: 1–3 | 0,2 %: 1 |
+
+### Shardpakete
+
+Genau ein universelles Shardpaket, keine ganzen Charaktere aus Auftragsbelohnungen.
+
+| Stufe | Common | Uncommon | Rare | Epic | Legendary |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 75 %: 2–4 | 20 %: 1–2 | 5 %: 1 | ausgeschlossen | ausgeschlossen |
+| 2 | 70 %: 3–6 | 24 %: 2–3 | 5,8 %: 1–2 | 0,2 %: 1 | ausgeschlossen |
+| 3 | 65 %: 4–8 | 28 %: 2–4 | 6,6 %: 1–3 | 0,38 %: 1–2 | 0,02 %: 1 |
+
+### Charaktere und Führungsteam
+
+Fünf vorläufige Charaktere mit unterschiedlichen Boni. Nur die fünf aktiven Sitze wirken; jede Figur darf nur einmal sitzen. Neue Figuren beginnen auf Level 1. Levelmaximum 10. Der Bonus steigt erst bei vollständiger Aufwertung, Teilzahlungen bleiben dauerhaft in der Fortschrittsleiste gespeichert.
+
+| Figur | Seltenheit | Bonus Level 1 | Zuwachs je Level |
+| --- | --- | --- | --- |
+| Navigator | Common | +1 % Fahrtempo | +0,5 Prozentpunkte |
+| Späher | Uncommon | +3 % Regenerationsgeschwindigkeit | +0,8 Prozentpunkte |
+| Vermittler | Rare | +1 Prozentpunkt Kundenauftragschance | +0,2 Prozentpunkte |
+| Gesandter | Epic | +1,5 Prozentpunkte Empfehlungschance | +0,3 Prozentpunkte |
+| Quartiermeister | Legendary | +20 maximale Punkte | +5 Punkte |
+
+Tempo wirkt zusätzlich zur bisherigen Ladungs-/Rangformel. Chancen werden auf 100 % begrenzt, der gesamte Regenerationsbonus auf +20 %. Beim Wechsel aktiver Sitze wird die anteilige Regenerationszeit zurückgesetzt; bereits erzeugte Punkte bleiben bestehen, auch wenn die Kapazität sinkt.
+
+Charakterfund-Pools (Common / Uncommon / Rare / Epic / Legendary): R1 `80/20/0/0/0 %`; R2 `60/30/10/0/0 %`; R3 `40/35/20/5/0 %`; R4 `30/30/25/14/1 %`; R5 `20/30/30/17/3 %`.
+
+Duplikate geben 10 universelle Shards der Figurenseltenheit, Legendary-Duplikate 25 Epic-Shards. Ziellevel 2–3 benötigt Common, 4–6 Uncommon, 7–9 Rare, 10 Epic. Basiskosten für Ziellevel 2–10: `10,20,10,15,25,3,5,8,2`. Multiplikatoren Common 1, Uncommon 1,5, Rare 3, Epic 6, Legendary 12; bei Legendary bis Ziellevel 4 Faktor 4. Kosten werden aufgerundet. Keine verbindliche Monatsdauer; diese Kurve muss mit tatsächlicher Nutzung getestet werden.
+
+Je 10 Shards werden zu einem der nächsthöheren Art kombiniert. Legendary-Shards können alternativ einzeln in 10 Epic zerlegt werden, da Epic aktuell die höchste für Charakterlevel benötigte Art ist. Es werden jeweils nur noch benötigte Shards eingezahlt; überzählige bleiben im Vorrat.
+
+Abgeholte Endlosaufträge werden auf 100 gespeicherte Protokolleinträge begrenzt; kumulative Statistiken bleiben erhalten. Neue Tests prüfen Forschung, optionale Missionen, Fahrzeugreservierung, einmalige Belohnungen nach Reload, Stufenlimits, Regeneration, Refills, Charaktere und Kundenintegration.
