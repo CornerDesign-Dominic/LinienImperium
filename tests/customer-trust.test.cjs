@@ -28,6 +28,7 @@ assert.equal(api.customerLevel(0), 0);
 assert.equal(api.availableCustomerSkillPoints('frischgut'), 0);
 assert.equal(api.allocateCustomerSkill('frischgut', 'pay'), false);
 state.expedition.regions[1].endlessUnlocked = true;
+state.expedition.regions[1].customerUnlocked = true;
 assert.equal(api.trustTotalForLevel(1), 110);
 assert.equal(api.trustTotalForLevel(2), 230);
 assert.equal(api.trustTotalForLevel(150) - api.trustTotalForLevel(149), 1600);
@@ -106,7 +107,7 @@ legacy.orders.push({ id: 'A-999', customer: 'frischgut', kind: 'normal', status:
 legacy.orders.push({ id: 'A-998', customer: 'frischgut', kind: 'normal', status: 'available', volume: 30, baseVolume: 20 });
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 37);
+assert.equal(migrated.version, 42);
 assert.equal(migrated.customerTrust.frischgut, 250);
 assert.equal(migrated.customerSkills.frischgut, undefined);
 assert.equal(migrated.orders.find(o => o.id === 'A-999').trustAwarded, true);

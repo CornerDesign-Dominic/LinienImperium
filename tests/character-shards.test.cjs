@@ -1,0 +1,85 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const beforeEvents = source.slice(0, source.indexOf("  document.addEventListener('click'"));
+const storage = new Map();
+const elements = new Map();
+const element = selector => { if (!elements.has(selector)) elements.set(selector, { innerHTML: '' }); return elements.get(selector); };
+const math = Object.create(Math);
+math.random = () => .5;
+const context = vm.createContext({ localStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) }, Date, Math: math, Intl, Number, JSON, setTimeout, clearTimeout, document: { querySelector: element } });
+vm.runInContext(beforeEvents + '\n globalThis.api = { newGame, loadGame, drawExpeditionJob, awardExpeditionLoot, rollExpeditionShard, giveCharacterShard, combineExpeditionShards, renderDevelopment, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
+const api = context.api;
+api.mute();
+
+const state = api.newGame('hamburg');
+api.setGame(state);
+state.expedition.characters.navigator = { level: 1, progress: 0 };
+state.expedition.shards.common = 600;
+for (let level = 1; level < 10; level++) {
+  const before = state.expedition.shards.common;
+  assert.equal(api.giveCharacterShard('navigator', true), true);
+  assert.equal(state.expedition.characters.navigator.level, level + 1);
+  assert.equal(before - state.expedition.shards.common, 2 ** (level - 1));
+}
+assert.equal(state.expedition.shards.common, 89, 'exactly 511 shards from level 1 to 10');
+assert.equal(api.giveCharacterShard('navigator'), false, 'maximum level is final');
+state.expedition.characters.navigator = { level: 3, progress: 1 };
+state.expedition.shards.common = 10;
+assert.equal(api.giveCharacterShard('navigator', true), true);
+assert.equal(state.expedition.characters.navigator.level, 4);
+assert.equal(state.expedition.shards.common, 7, 'bulk deposit consumes only missing shards');
+assert.equal(api.combineExpeditionShards('legendary'), false, 'no reverse conversion');
+state.expedition.shards.common = 10;
+assert.equal(api.combineExpeditionShards('common'), true);
+assert.equal(state.expedition.shards.uncommon, 1);
+assert.equal(state.expedition.shards.common, 0);
+api.renderDevelopment();
+assert.match(element('#development-content').innerHTML, /Universelle Shards kombinieren/);
+assert.match(element('#development-content').innerHTML, /10 zu 1 Uncommon/);
+assert.doesNotMatch(element('#development-content').innerHTML, /data-shard-combine="legendary"/);
+
+math.random = () => .999;
+assert.equal(api.rollExpeditionShard(1), 'rare');
+assert.equal(api.rollExpeditionShard(2), 'epic');
+assert.equal(api.rollExpeditionShard(3), 'legendary');
+state.expedition.regions.forEach(region => { region.endlessUnlocked = true; });
+state.expedition.points = 100;
+assert.notEqual(api.drawExpeditionJob(3), 'directCharacter');
+assert.notEqual(api.drawExpeditionJob(4), 'directCharacter');
+assert.equal(state.expedition.characters.logistiker, undefined);
+assert.equal(state.expedition.characters.pionierin, undefined);
+
+const loot = api.newGame('hamburg');
+api.setGame(loot);
+math.random = () => .999;
+api.awardExpeditionLoot({ region: 4, tier: 1, lootKind: 'character' });
+assert.equal(loot.expedition.shards.legendary, 0, 'tier 1 excludes legendary');
+assert.equal(loot.expedition.shards.epic, 0, 'tier 1 excludes epic');
+api.awardExpeditionLoot({ region: 4, tier: 2, lootKind: 'character' });
+assert.equal(loot.expedition.shards.epic, 2, 'tier 2 can yield epic');
+assert.equal(loot.expedition.shards.legendary, 0, 'tier 2 excludes legendary');
+api.awardExpeditionLoot({ region: 4, tier: 3, lootKind: 'character' });
+assert.equal(loot.expedition.shards.legendary, 2, 'tier 3 can yield legendary');
+
+const old = api.newGame('hamburg');
+old.version = 39;
+old.expedition.shards = { common: 45, uncommon: 45, rare: 45, epic: 45, legendary: 45 };
+old.expedition.specificShards = { navigator: 5, pionierin: 10 };
+old.expedition.characters = { navigator: { level: 3, progress: 7 }, pionierin: { level: 5, progress: 80 } };
+storage.set('frachtwerk-save-v2', JSON.stringify(old));
+const migrated = api.loadGame();
+assert.equal(migrated.version, 42);
+assert.equal(migrated.expedition.shards.common, Math.round(45 * 511 / 225) + Math.round(5 * 511 / 225));
+assert.equal(migrated.expedition.shards.legendary, Math.round(45 * 511 / 1800) + Math.round(10 * 511 / 1800));
+assert.equal(migrated.expedition.characters.navigator.level, 3);
+assert.equal(migrated.expedition.characters.navigator.progress, 1.867);
+assert.equal(migrated.expedition.characters.pionierin.level, 5);
+assert.equal(migrated.expedition.characters.pionierin.progress, 6.4);
+assert.equal(migrated.expedition.specificShards, undefined);
+assert.equal(api.loadGame().expedition.shards.common, migrated.expedition.shards.common, 'migration is one-time');
+
+console.log('universal character shards, tier pools and migration: OK');

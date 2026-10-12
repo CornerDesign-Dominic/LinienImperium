@@ -8,9 +8,11 @@
   const RARITY_SPEED_PER_LEVEL = .005;
   const LEGACY_COST_PER_KM = 1;
   const FREIGHT_PAY_PER_TON_KM = 1;
+  const BASE_COMPLETION_PREMIUM_PER_TON = 1;
   const LOAD_COST_PER_TON_KM = .1;
   const CO2_KG_PER_TON_KM = .05275;
   const MAX_RARITY_LEVEL = 50;
+  const CAPACITY_PER_MODULE = .5;
   const HUB_CYCLE_MS = 60 * 60 * 1000;
   const HUB_WORK_SECONDS = 45 * 60;
   const HUB_ROUTE_KM = 12;
@@ -41,15 +43,18 @@
   };
   const BASE_OFFERS = 5;
   const INTERNATIONAL_OFFER_CHANCE = .20;
-  const CUSTOMER_OFFER_CHANCE = .10;
+  const CUSTOMER_OFFER_CHANCE = .05;
   const EXPEDITION_REGEN_MS = 20 * 60 * 1000;
   const EXPEDITION_COST = 5;
+  const EXPEDITION_JOB_DISTANCE = 30;
+  const EXPEDITION_JOB_TONS_PER_TIER = 20;
   const EXPEDITION_JOB_WEIGHTS = [
     { kind: 'character', chance: .20 },
     { kind: 'material', chance: .75 },
     { kind: 'special', chance: .045 },
     { kind: 'referral', chance: .005 }
   ];
+  const EXPEDITION_STAGE_WEIGHTS = [[1], [.75, .25], [.5, .5], [.25, .5, .25], [.1, .45, .45]];
   const EXPEDITION_REGIONS = ['Region 1', 'Region 2', 'Region 3', 'Region 4', 'Region 5'];
   const EXPEDITION_CHARACTERS = [
     { id: 'navigator', name: 'Navigatorin', rarity: 'common', region: 0, bonus: 'regen', base: 2, step: 1 },
@@ -58,8 +63,15 @@
     { id: 'logistiker', name: 'Logistiker', rarity: 'epic', region: 3, bonus: 'duration', base: 10, step: 2 },
     { id: 'pionierin', name: 'Pionierin', rarity: 'legendary', region: 4, bonus: 'loot', base: 15, step: 3 }
   ];
-  const EXPEDITION_SHARD_TIERS = ['uncommon', 'uncommon', 'common', 'common', 'common', 'rare', 'rare', 'rare', 'epic'];
-  const EXPEDITION_RARITY_COST = { common: 5, uncommon: 10, rare: 20, epic: 30, legendary: 40 };
+  const CHARACTER_LEVEL_COSTS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+  const OLD_CHARACTER_COSTS = { common: 5, uncommon: 10, rare: 20, epic: 30, legendary: 40 };
+  const SHARD_COMBINE_RATIO = 10;
+  // Testpools je Auftragsstufe; Stufe 3 liefert im Regions-5-Maximalszenario etwa 7 Legendary-Shards/Monat.
+  const EXPEDITION_SHARD_POOLS = [
+    { common: .58, uncommon: .32, rare: .10 },
+    { common: .37, uncommon: .31, rare: .24, epic: .08 },
+    { common: .29, uncommon: .25, rare: .23, epic: .17, legendary: .06 }
+  ];
   const SPECIAL_CHANCES = {
     national: { award: .20, module: .08, referral: .04, referralModule: .20 },
     international: { award: .40, module: .12, referral: .06, referralModule: .30 }
@@ -72,8 +84,26 @@
   const CITY_DISTANCE_MAX = 25;
   const CITY_VOLUME_MIN = 10;
   const CITY_VOLUME_MAX = 100;
+  const TRANSPORT_BASE = {
+    national: { minDistance: 30, maxDistance: 100, minVolume: 10, maxVolume: 40, premiumPerTon: BASE_COMPLETION_PREMIUM_PER_TON },
+    international: { minDistance: 100, maxDistance: 200, minVolume: 10, maxVolume: 50, premiumPerTon: BASE_COMPLETION_PREMIUM_PER_TON }
+  };
+  const PRIVATE_PICKUP_BASE = { minDistance: 40, maxDistance: 180, minVolume: 10, maxVolume: 80 };
   const AUTO_REFRESH_MS = 15 * 60 * 1000;
-  const MANUAL_REFRESH_BASE_COST = 50;
+  const MANUAL_REFRESH_BASE_COST = 250;
+  // Firmenausbau-Items: dauerhafter gemeinsamer tkm-Zähler; andere Abteilungen
+  // behalten ihre bisherigen, separat balancierten Testkosten.
+  const COMPANY_BALANCE = {
+    tkmPerItem: 750000, materialItemChance: .06, materialItemsByTier: [1, 2, 3], craftedOrderItems: 10,
+    transportUpgradeItems: level => 2 + Math.floor((level - 1) / 10),
+    transportUpgradeCoins: (kind, level) => ({ premium: 10, volume: 50, range: 100 })[kind] * level * level,
+    upgradeItems: level => 1 + Math.floor((level - 1) / 25),
+    upgradeCoins: level => 500 + 50 * level
+  };
+  const TRANSPORT_UPGRADE_LIMITS = {
+    national: { premium: 100, volume: 50, range: 50 },
+    international: { premium: 100, volume: 150, range: 100 }
+  };
   const EMPLOYEE_HIRE_PRICE = 500;
   const DISPATCH_UNLOCK_PRICE = 5000;
   const WORKSHOP_UNLOCK_PRICE = 5000;
@@ -84,27 +114,27 @@
   const DEPARTMENTS = [
     { id: 'accounting', name: 'Buchhaltung', icon: '▣', description: 'Später für Finanzen und Abrechnungen.' },
     { id: 'hr', name: 'Personalabteilung', icon: '♙', description: 'Die Personalabteilung wird später neu gestaltet. Einstellungen sind derzeit ausgesetzt.' },
-    { id: 'dispatch', name: 'Disposition', icon: '⇄', description: 'Erweitert die Auftragslisten für Landesweit und International.' },
+    { id: 'dispatch', name: 'Disposition', icon: '⇄', description: 'Erweitert die Auftragslisten für Regionalverkehr und Fernverkehr.' },
     { id: 'workshop', name: 'Werkstatt', icon: '⚒', description: 'Senkt die Betriebskosten deiner LKW.' },
     { id: 'fleet', name: 'Fuhrpark', icon: '▰', description: 'Später für die Verwaltung und Entwicklung deines Fuhrparks.' },
     { id: 'storage', name: 'Lager', icon: '▤', description: 'Später für die Verwaltung deiner Materialien und Gegenstände.' },
     { id: 'sales', name: 'Vertrieb & Kundenbetreuung', icon: '◎', description: 'Erlaubt, Aufträge bei Angebotswechseln anzuheften.' }
   ];
   const TRUCKS = [
-    { model: 'Sprinter', capacity: 1, emptyCostPerKm: .2, price: 4000, symbol: '🚚', description: 'Der Einstieg für den Stadtverkehr.' },
-    { model: '3,5-Tonner', capacity: 1.5, emptyCostPerKm: .5, price: 20000, symbol: '🚚', description: 'Für Stadtverkehr.' },
-    { model: '7,5-Tonner', capacity: 4, emptyCostPerKm: .65, price: 25000, symbol: '🚛', description: 'Für landesweite Aufträge.' },
-    { model: '18-Tonner', capacity: 8.5, emptyCostPerKm: .7, price: 100000, symbol: '🚛', description: 'Nur für landesweite Aufträge.' },
-    { model: 'Sattelzug', capacity: 18, emptyCostPerKm: 1.6, price: 500000, symbol: '🚛', description: 'Landesweit und international.' },
+    { model: 'Sprinter', capacity: 1, maxCapacityLevel: 1, emptyCostPerKm: .2, price: 4000, symbol: '🚚', description: 'Der Einstieg für den Stadtverkehr.' },
+    { model: '3,5-Tonner', capacity: 1.5, maxCapacityLevel: 2, emptyCostPerKm: .5, price: 20000, symbol: '🚚', description: 'Für Stadtverkehr.' },
+    { model: '7,5-Tonner', capacity: 4, maxCapacityLevel: 3, emptyCostPerKm: .65, price: 25000, symbol: '🚛', description: 'Für Aufträge im Regionalverkehr.' },
+    { model: '18-Tonner', capacity: 8.5, maxCapacityLevel: 5, emptyCostPerKm: .7, price: 100000, symbol: '🚛', description: 'Nur für Aufträge im Regionalverkehr.' },
+    { model: 'Sattelzug', capacity: 18, maxCapacityLevel: 12, emptyCostPerKm: 1.6, price: 500000, symbol: '🚛', description: 'Nur für Aufträge im Fernverkehr.' },
     // Tier 4 bleibt für vorhandene Spielstände der LKW mit 18 t Ladekapazität.
-    { model: '26-Tonner', capacity: 13, emptyCostPerKm: 1.05, price: 250000, symbol: '🚛', description: 'Landesweit und international.' },
-    { model: '40-t-Tautliner', capacity: 24, emptyCostPerKm: 2.10, price: 1000000, symbol: '🚛', description: 'Landesweit und international.' }
+    { model: '26-Tonner', capacity: 13, maxCapacityLevel: 8, emptyCostPerKm: 1.05, price: 250000, symbol: '🚛', description: 'Regionalverkehr und Fernverkehr.' },
+    { model: '40-t-Tautliner', capacity: 24, maxCapacityLevel: 0, emptyCostPerKm: 2.10, price: 1000000, symbol: '🚛', description: 'Nur für Aufträge im Fernverkehr.' }
   ];
   const LEGACY_TRUCK_PRICES = [450, 900, 1600, 2600, 4000];
   const CATEGORIES = [
     { id: 'city', label: 'Stadtverkehr', tiers: [0, 1] },
-    { id: 'national', label: 'Landesweit', tiers: [2, 3, 4, 5, 6] },
-    { id: 'international', label: 'International', tiers: [4, 5, 6] }
+    { id: 'national', label: 'Regionalverkehr', tiers: [2, 3, 5] },
+    { id: 'international', label: 'Fernverkehr', tiers: [4, 5, 6] }
   ];
   const CUSTOMERS = [
     { id: 'nordbau', name: 'Nordbau GmbH', initials: 'NB', industry: 'Baustoffe', cargo: 'Baustoffe', unlockLevel: 3, category: 'national' },
@@ -155,7 +185,39 @@
   const random = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const pick = (items) => items[random(0, items.length - 1)];
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-  const newCompany = () => ({ departments: {}, offerLevel: 0, offerLevels: { city: 0, national: 0, international: 0 }, workshopLevel: 0, salesLevel: 0, employees: 0 });
+  const newCompany = () => ({ departments: {}, offerLevel: 0, offerLevels: { city: 0, national: 0, international: 0 }, transportUpgrades: { national: { premiumLevel: 0, volumeLevel: 0, rangeLevel: 0 }, international: { premiumLevel: 0, volumeLevel: 0, rangeLevel: 0 } }, workshopLevel: 0, salesLevel: 0, employees: 0 });
+
+  function transportRules(category, company = game?.company) {
+    const base = TRANSPORT_BASE[category];
+    if (!base) return null;
+    const upgrade = company?.transportUpgrades?.[category] || {};
+    const limits = TRANSPORT_UPGRADE_LIMITS[category];
+    const level = (kind, legacy) => clamp(Math.floor(Number(upgrade[`${kind}Level`] ?? legacy) || 0), 0, limits[kind]);
+    const premium = level('premium', Number(upgrade.premiumBonus) * 100);
+    const volume = level('volume', upgrade.extraVolume);
+    const range = level('range', upgrade.extraRange);
+    return { ...base,
+      maxDistance: base.maxDistance + range,
+      minVolume: base.minVolume + Math.floor(volume / 2),
+      maxVolume: base.maxVolume + volume,
+      premiumBonus: premium / 100
+    };
+  }
+  function routeCandidates(routes, minDistance, maxDistance) {
+    const inRange = routes.filter(route => route[route.length - 1] >= minDistance && route[route.length - 1] <= maxDistance);
+    if (inRange.length) return inRange;
+    const gap = route => Math.max(minDistance - route[route.length - 1], 0, route[route.length - 1] - maxDistance);
+    const nearest = Math.min(...routes.map(gap));
+    return routes.filter(route => gap(route) === nearest);
+  }
+  function offerRoutes(home, category, rules, keepBase = true) {
+    const routes = home[category];
+    const eligible = routeCandidates(routes, rules.minDistance, rules.maxDistance);
+    if (!keepBase || !TRANSPORT_BASE[category]) return eligible;
+    const base = TRANSPORT_BASE[category];
+    const original = routeCandidates(routes, base.minDistance, base.maxDistance);
+    return [...new Set([...original, ...eligible])];
+  }
 
   function randomCategory() {
     const roll = Math.random();
@@ -166,6 +228,7 @@
     const { level = 1, starter = false } = options;
     const home = startCityById(options.startCity || game?.startCity) || startCityById('hamburg');
     const category = options.category || 'national';
+    const rules = options.kind === 'private' ? PRIVATE_PICKUP_BASE : transportRules(category, options.company || game?.company);
     const customers = CUSTOMERS.filter(c => c.category === category && category !== 'city' && customerUnlocked(c.id));
     const customer = options.customer === null ? null : options.customer || (!starter && customers.length > 0 && Math.random() < CUSTOMER_OFFER_CHANCE ? pick(customers).id : null);
     const [cargo, icon] = starter ? CARGO[0] : customer ? CARGO.find(([name]) => name === customerById(customer).cargo) : pick(CARGO);
@@ -178,14 +241,13 @@
       distance = starter ? 8 : random(CITY_DISTANCE_MIN, CITY_DISTANCE_MAX);
       volume = starter ? 20 : random(CITY_VOLUME_MIN, CITY_VOLUME_MAX);
     } else if (category === 'national') {
-      const [destination, routeDistance] = pick(home.national.filter(([, km]) => km >= 40 && km <= 180));
+      const [destination, routeDistance] = pick(offerRoutes(home, category, rules, options.kind !== 'private'));
       from = home.city; to = destination;
-      distance = routeDistance; volume = random(1, 8) * 10;
+      distance = routeDistance; volume = random(rules.minVolume, rules.maxVolume);
     } else {
-      const inRange = home.international.filter(([, , km]) => km >= 150 && km <= 500);
-      const [destination, country, routeDistance] = pick(inRange.length ? inRange : home.international);
+      const [destination, country, routeDistance] = pick(offerRoutes(home, category, rules, options.kind !== 'private'));
       from = home.city; to = `${destination}, ${country}`; destinationCountry = country;
-      distance = routeDistance; volume = random(1, 6) * 10;
+      distance = routeDistance; volume = random(rules.minVolume, rules.maxVolume);
     }
     const baseVolume = volume;
     return {
@@ -195,17 +257,25 @@
       truckId: null, tripStartAt: null, createdAt: Date.now(), completedAt: null
     };
   }
+  function availableOrderUsesCurrentBase(order, state) {
+    if (order.status !== 'available' || !TRANSPORT_BASE[order.category]) return true;
+    const rules = transportRules(order.category, state.company);
+    const home = startCityById(order.homeCity || state.startCity);
+    const routes = home ? offerRoutes(home, order.category, rules) : [];
+    return order.volume >= TRANSPORT_BASE[order.category].minVolume && order.volume <= rules.maxVolume
+      && routes.some(route => route[route.length - 1] === order.distance);
+  }
 
   function newGame(startCity = null) {
-    const state = { version: 37, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 42, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
-      stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
+      stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, transportUpgradeSpent: 0, hubUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
       for (const tier of [2, 2]) {
         const model = TRUCKS[tier];
         state.trucks.push({ id: `LKW-${String(state.nextTruck++).padStart(2, '0')}`, tier, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, purchasePrice: null, kmDriven: 0, toursCompleted: 0, ordersCompleted: 0 });
       }
-      for (let i = 0; i < BASE_OFFERS; i++) state.orders.push(createOrder(state.nextOrder++, { category: randomCategory(), startCity, customer: null }));
+      for (let i = 0; i < BASE_OFFERS; i++) state.orders.push(createOrder(state.nextOrder++, { category: randomCategory(), startCity, customer: null, company: state.company }));
       state.events.unshift({ text: `Deine Spedition in ${startCityById(startCity).city} startet mit zwei 7,5-Tonnern.`, at: Date.now() });
     }
     return state;
@@ -214,18 +284,115 @@
   function loadGame() {
     try {
       const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (current?.version === 37 && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return ensureExpedition(refreshTruckModelNames(current));
+      if ([37, 38, 39, 40, 41, 42].includes(current?.version) && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(current)))))));
     } catch (_) { /* Beschädigte Spielstände behandelt die bestehende Migration. */ }
     const stored = loadLegacyGame();
-    if (stored.version === 36) return ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)));
-    if (stored.version !== 35) return ensureExpedition(refreshTruckModelNames(stored));
+    if (stored.version === 36) return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored))))))));
+    if (stored.version !== 35) return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(stored)))))));
     const old = stored.company?.offerLevels || {};
     stored.company ||= newCompany();
     stored.company.offerLevel = clamp((old.national || 0) + (old.international || 0), 0, MAX_OFFER_LEVEL);
     stored.version = 36;
     // Keep every legacy offer and assignment; normal replenishment fills missing slots later.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    return ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)));
+    return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored))))))));
+  }
+  function upgradeCapacitySave(stored) {
+    if (stored.version !== 41) return stored;
+    for (const truck of stored.trucks) {
+      const base = TRUCKS[truck.tier]?.capacity;
+      const oldLevel = Math.max(0, Math.floor(Number(truck.moduleCapacityLevel) || 0));
+      const purchasedCapacity = Number(truck.capacity);
+      // Historisch: Stufe 1 kostete 1 Modul und gab +1 t, Stufe 2 kostete
+      // weitere 3 Module und gab +1 t. Beide Bestände bleiben erhalten.
+      const preservedExtra = Number.isFinite(purchasedCapacity) && Number.isFinite(base) ? Math.max(0, purchasedCapacity - base) : oldLevel;
+      truck.moduleCapacityLevel = Math.max(oldLevel * 2, Math.ceil(preservedExtra / CAPACITY_PER_MODULE));
+      truck.capacity = Number.isFinite(purchasedCapacity) ? Math.max(purchasedCapacity, (base ?? 0) + truck.moduleCapacityLevel * CAPACITY_PER_MODULE) : (base ?? 0) + truck.moduleCapacityLevel * CAPACITY_PER_MODULE;
+      truck.moduleCapacitySpent = oldLevel >= 2 ? 4 : oldLevel === 1 ? 1 : 0;
+    }
+    stored.version = 42;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function upgradeItemEconomySave(stored) {
+    if (stored.version !== 40) return stored;
+    stored.inventory ||= {};
+    // Alte Aufträge und bereits festgelegte Prämien bleiben unverändert.
+    // Historische tkm erzeugen unter dem neuen Schwellenwert keine Nachzahlung.
+    stored.inventory.companyItemTkmRemainder = 0;
+    stored.version = 41;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function upgradeCharacterSave(stored) {
+    if (stored.version !== 39) return stored;
+    const expedition = stored.expedition ||= newExpedition();
+    expedition.shards ||= {};
+    expedition.specificShards ||= {};
+    // Alte Shards waren nach Ziellevel statt nach Figurenseltenheit nutzbar. Die
+    // gleichnamige Seltenheit dient als eindeutiger Migrationsanker. Der Faktor
+    // erhält den Anteil am vollständigen Ausbau: alt 45 × Seltenheitsfaktor,
+    // neu 511 Shards. Figurgebundene Vorräte werden nur einmal hinzugefügt.
+    const converted = Object.fromEntries(RARITIES.map(({ id }) => [id, 0]));
+    for (const { id } of RARITIES) {
+      const count = Math.max(0, Math.floor(Number(expedition.shards[id]) || 0));
+      if (count) converted[id] += Math.max(1, Math.round(count * 511 / (45 * OLD_CHARACTER_COSTS[id])));
+    }
+    for (const character of EXPEDITION_CHARACTERS) {
+      const count = Math.max(0, Math.floor(Number(expedition.specificShards[character.id]) || 0));
+      if (count) converted[character.rarity] += Math.max(1, Math.round(count * 511 / (45 * OLD_CHARACTER_COSTS[character.rarity])));
+      const card = expedition.characters?.[character.id];
+      if (!card) continue;
+      card.level = clamp(Math.floor(Number(card.level) || 1), 1, 10);
+      if (card.level === 10) { card.progress = 0; continue; }
+      const oldNeeded = card.level * OLD_CHARACTER_COSTS[character.rarity];
+      const oldProgress = clamp(Number(card.progress) || 0, 0, oldNeeded - 1);
+      card.progress = Math.round(oldProgress / oldNeeded * CHARACTER_LEVEL_COSTS[card.level - 1] * 1000) / 1000;
+    }
+    expedition.shards = converted;
+    delete expedition.specificShards;
+    stored.version = 40;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function upgradeCompanySave(stored) {
+    if (stored.version !== 38) return stored;
+    stored.inventory ||= {};
+    stored.inventory.companyItems = Math.max(0, Math.floor(Number(stored.inventory.companyItems) || 0));
+    stored.company ||= newCompany();
+    stored.company.transportUpgrades ||= {};
+    for (const category of ['national', 'international']) {
+      const old = stored.company.transportUpgrades[category] || {};
+      const limits = TRANSPORT_UPGRADE_LIMITS[category];
+      stored.company.transportUpgrades[category] = {
+        premiumLevel: clamp(Math.round((Number(old.premiumBonus) || 0) * 100), 0, limits.premium),
+        volumeLevel: clamp(Math.floor(Number(old.extraVolume) || 0), 0, limits.volume),
+        rangeLevel: clamp(Math.floor(Number(old.extraRange) || 0), 0, limits.range)
+      };
+    }
+    stored.stats ||= {};
+    stored.stats.transportUpgradeSpent ||= 0;
+    stored.stats.hubUpgradeSpent ||= 0;
+    for (const order of stored.orders) if (order.completionReward) delete order.completionReward.companyItems;
+    stored.nextAutoRefreshAt = Number.isFinite(stored.nextAutoRefreshAt)
+      ? stored.nextAutoRefreshAt + 10 * 60 * 1000 : Date.now() + AUTO_REFRESH_MS;
+    stored.version = 39;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
+  }
+  function upgradeBalanceSave(stored) {
+    if (stored.version !== 37) return stored;
+    let oldLevel = 1, oldThreshold = 0;
+    while (stored.xp >= oldThreshold + oldLevel * 100) oldThreshold += oldLevel++ * 100;
+    if (oldLevel > levelForXp(stored.xp).level) {
+      stored.levelFloor = oldLevel;
+      stored.levelFloorXp = stored.xp;
+    }
+    stored.nextAutoRefreshAt = Number.isFinite(stored.nextAutoRefreshAt)
+      ? stored.nextAutoRefreshAt - 10 * 60 * 1000 : Date.now() + AUTO_REFRESH_MS;
+    stored.version = 38;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
   }
   function refreshTruckModelNames(stored) {
     let changed = false;
@@ -331,7 +498,7 @@
     stored.inventory ||= { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])) };
     stored.inventory.capacityModules = Math.max(0, Math.floor(Number(stored.inventory.capacityModules) || 0));
     for (const truck of stored.trucks) {
-      truck.moduleCapacityLevel = Math.max(0, Math.min(2, Math.floor(Number(truck.moduleCapacityLevel) || 0)));
+      truck.moduleCapacityLevel = Math.max(0, Math.floor(Number(truck.moduleCapacityLevel) || 0));
       truck.capacity = (TRUCKS[truck.tier]?.capacity ?? truck.capacity) + truck.moduleCapacityLevel;
     }
     for (const order of stored.orders) {
@@ -684,25 +851,67 @@
   let toastTimer;
 
   function newExpedition() {
-    return { points: 50, lastRegenAt: Date.now(), regions: EXPEDITION_REGIONS.map(() => ({ discovered: 0, deliveries: Array(7).fill(false), endlessUnlocked: false })), jobs: [], missions: [], shards: Object.fromEntries(RARITIES.map(r => [r.id, 0])), specificShards: {}, characters: {}, seats: Array(5).fill(null), nextMission: 1 };
+    return { points: 50, lastRegenAt: Date.now(), regions: EXPEDITION_REGIONS.map(() => ({ discovered: 0, deliveries: Array(7).fill(false), endlessUnlocked: false, moduleAwarded: false, finalClaimed: false, customerUnlocked: false })), jobs: [], missions: [], shards: Object.fromEntries(RARITIES.map(r => [r.id, 0])), characters: {}, seats: Array(5).fill(null), nextMission: 1 };
   }
   function ensureExpedition(stored) {
+    let changed = false;
+    stored.company ||= newCompany();
+    stored.company.transportUpgrades ||= {};
+    for (const category of ['national', 'international']) {
+      if (!stored.company.transportUpgrades[category]) {
+        stored.company.transportUpgrades[category] = { premiumLevel: 0, volumeLevel: 0, rangeLevel: 0 };
+        changed = true;
+      }
+    }
+    if (stored.startCity) {
+      const outdated = stored.orders.filter(order => !availableOrderUsesCurrentBase(order, stored));
+      if (outdated.length) {
+        stored.orders = stored.orders.filter(order => availableOrderUsesCurrentBase(order, stored));
+        for (const order of outdated) {
+          const replacement = createOrder(stored.nextOrder++, { category: order.category, startCity: stored.startCity, customer: null, company: stored.company });
+          replacement.pinned = Boolean(order.pinned);
+          stored.orders.push(replacement);
+        }
+        changed = true;
+      }
+    }
     if (!stored.expedition) {
       stored.expedition = newExpedition();
       // Existing accepted contracts and earned trust remain available after migration.
       for (const order of stored.orders) if (order.customer && order.status !== 'available') {
         const index = EXPEDITION_CUSTOMER_IDS.indexOf(order.customer);
-        if (index >= 0) { stored.expedition.regions[index].discovered = 7; stored.expedition.regions[index].endlessUnlocked = true; }
+        if (index >= 0) { stored.expedition.regions[index].discovered = 7; stored.expedition.regions[index].endlessUnlocked = true; stored.expedition.regions[index].customerUnlocked = true; }
       }
       for (const customer of CUSTOMERS) if ((stored.customerTrust?.[customer.id] || 0) > 0) {
         const region = stored.expedition.regions[EXPEDITION_CUSTOMER_IDS.indexOf(customer.id)];
         region.discovered = 7;
         region.endlessUnlocked = true;
+        region.customerUnlocked = true;
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+      changed = true;
     }
-    stored.expedition.specificShards ||= {};
+    if (stored.version < 40) stored.expedition.specificShards ||= {};
     stored.expedition.jobs ||= [];
+    for (const region of stored.expedition.regions) {
+      if (region.moduleAwarded === undefined) {
+        // Old completed Großaufträge already awarded their module and customer.
+        const previouslyCompleted = Boolean(region.endlessUnlocked);
+        region.moduleAwarded = previouslyCompleted || region.discovered >= 7;
+        region.finalClaimed = previouslyCompleted;
+        region.customerUnlocked = previouslyCompleted || Boolean(region.customerUnlocked);
+        if (!previouslyCompleted && region.discovered >= 7) stored.inventory.capacityModules++;
+        if (region.discovered >= 7) region.endlessUnlocked = true;
+        changed = true;
+      }
+    }
+    for (const mission of stored.expedition.missions || []) {
+      const region = stored.expedition.regions[mission.region];
+      if (mission.status === 'completed' && !mission.claimedAt && ((mission.kind === 'delivery' && region?.deliveries[mission.place]) || (mission.kind === 'final' && region?.finalClaimed))) {
+        mission.claimedAt = mission.endsAt || Date.now();
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     return stored;
   }
   function expeditionBonus(kind) {
@@ -733,7 +942,13 @@
     game.expedition.lastRegenAt = Date.now();
     return true;
   }
-  function expeditionRegionOpen(index) { return index === 0 || game.expedition.regions[index - 1]?.endlessUnlocked; }
+  function expeditionRegionOpen(index) {
+    return Number.isInteger(index) && index >= 0 && index < game.expedition.regions.length
+      && game.expedition.regions.slice(0, index).every(region => region.endlessUnlocked);
+  }
+  function expeditionRegionCompleted(region) {
+    return region.discovered === 7 && region.endlessUnlocked && region.moduleAwarded && region.finalClaimed && region.deliveries.every(Boolean);
+  }
   function expeditionDiscoveryCost(index, place) { return 3 + index * 9 + Math.floor(place / 2); }
   function discoverExpeditionPlace(index) {
     const region = game.expedition.regions[index];
@@ -741,17 +956,31 @@
     const cost = expeditionDiscoveryCost(index, region.discovered);
     if (!spendExpeditionPoints(cost)) return false;
     region.discovered++;
+    if (region.discovered === 7 && !region.moduleAwarded) {
+      region.endlessUnlocked = true;
+      region.moduleAwarded = true;
+      game.inventory.capacityModules++;
+      addEvent(`${EXPEDITION_REGIONS[index]}: Endlosort freigelegt · 1 Kapazitätsmodul erhalten.`);
+    }
     addEvent(`${EXPEDITION_REGIONS[index]}: Ort ${region.discovered} entdeckt.`);
     save(); render(); return true;
   }
   function expeditionTruckFree(id) { return freeTrucks().some(truck => truck.id === id && truck.tier >= 2); }
   function expeditionDuration(index, kind, place = 0) {
-    const hours = kind === 'delivery' ? (2 + index * 8 + place * 3) : kind === 'final' ? (8 + index * 40) : (1 + index);
+    const hours = kind === 'delivery' ? (2 + index * 8 + place * 3) : (8 + index * 40);
     return hours * 3600000 * (1 - Math.min(40, expeditionBonus('duration')) / 100);
   }
   function drawExpeditionJob(index) {
     const region = game.expedition.regions[index];
-    if (!region?.endlessUnlocked || !spendExpeditionPoints(EXPEDITION_COST)) return false;
+    if (!region?.endlessUnlocked || !expeditionRegionOpen(index) || !spendExpeditionPoints(EXPEDITION_COST)) return false;
+    if (index < 3 && Math.random() < .02) {
+      const character = EXPEDITION_CHARACTERS[index];
+      if (!game.expedition.characters[character.id]) game.expedition.characters[character.id] = { level: 1, progress: 0 };
+      else game.expedition.shards[character.rarity]++;
+      addEvent(`${EXPEDITION_REGIONS[index]}: ${character.name} direkt gefunden.`);
+      save(); render(); showToast(`${character.name} gefunden.`);
+      return 'directCharacter';
+    }
     const roll = Math.random();
     let cumulative = 0;
     const kind = EXPEDITION_JOB_WEIGHTS.find(item => (cumulative += item.chance) > roll)?.kind || 'material';
@@ -759,7 +988,10 @@
       const customer = customerById(EXPEDITION_CUSTOMER_IDS[index]);
       queueCustomerTrip({ category: customer.category, customer: customer.id, homeCity: game.startCity }, kind);
     } else {
-      game.expedition.jobs.push({ id: game.expedition.nextMission++, region: index, kind, createdAt: Date.now() });
+      const stageRoll = Math.random();
+      let stageTotal = 0;
+      const tier = EXPEDITION_STAGE_WEIGHTS[index].findIndex(weight => (stageTotal += weight) > stageRoll) + 1;
+      game.expedition.jobs.push({ id: game.expedition.nextMission++, region: index, kind, tier: tier || 1, createdAt: Date.now() });
     }
     addEvent(`${EXPEDITION_REGIONS[index]}: ${expeditionJobLabel(kind)} ausgelost.`);
     save(); render(); showToast(`${expeditionJobLabel(kind)} erhalten.`);
@@ -768,19 +1000,50 @@
   function expeditionJobLabel(kind) {
     return { character: 'Charakterauftrag', material: 'Materialauftrag', special: 'Sonderfahrt', referral: 'Empfehlungsauftrag' }[kind] || 'Expeditionsauftrag';
   }
-  function expeditionJobTier(entry) { return [1, 2, 3].includes(entry.tier) ? entry.tier : null; }
+  function expeditionJobTier(entry) { return [1, 2, 3].includes(entry.tier) ? entry.tier : 1; }
+  function rollExpeditionShard(tier) {
+    const pool = EXPEDITION_SHARD_POOLS[tier - 1];
+    const roll = Math.random();
+    let total = 0;
+    return Object.entries(pool).find(([, chance]) => (total += chance) > roll)?.[0] || Object.keys(pool).at(-1);
+  }
+  function expeditionJobVolume(entry) { return expeditionJobTier(entry) * EXPEDITION_JOB_TONS_PER_TIER; }
+  function expeditionTransportPlan(job, truck, startedAt = Date.now()) {
+    const volume = expeditionJobVolume(job);
+    const durationFactor = 1 - Math.min(40, expeditionBonus('duration')) / 100;
+    const route = { distance: EXPEDITION_JOB_DISTANCE, routeType: 'single' };
+    const tours = [];
+    let remaining = volume;
+    let nextAt = startedAt;
+    while (remaining > 0) {
+      const cargo = Math.min(truck.capacity, remaining);
+      const endsAt = nextAt + tourSeconds(route, truck, cargo) * durationFactor * 1000;
+      tours.push({ cargo, startsAt: nextAt, endsAt });
+      remaining = round2(remaining - cargo);
+      nextAt = endsAt;
+    }
+    return { volume, delivered: 0, completedTours: 0, tours };
+  }
+  function expeditionTransportProgress(mission, now = Date.now()) {
+    const transport = mission.transport;
+    if (!transport) return 0;
+    const next = transport.tours[transport.completedTours];
+    const inTransit = next ? next.cargo * clamp((now - next.startsAt) / (next.endsAt - next.startsAt), 0, 1) : 0;
+    return clamp((transport.delivered + inTransit) / transport.volume * 100, 0, 100);
+  }
   function startExpeditionMission(index, kind, truckId, place = 0) {
     const region = game.expedition.regions[index];
     if (!region || !expeditionTruckFree(truckId) || !expeditionRegionOpen(index)) return false;
-    if (kind === 'delivery' && (place >= region.discovered || region.deliveries[place] || game.expedition.missions.some(m => m.status === 'active' && m.region === index && m.kind === 'delivery' && m.place === place))) return false;
-    if (kind === 'final' && (region.discovered < 7 || region.endlessUnlocked || game.expedition.missions.some(m => m.region === index && m.kind === 'final'))) return false;
+    if (kind === 'delivery' && (!Number.isInteger(place) || place < 0 || place >= 7 || place >= region.discovered || region.deliveries[place] || game.expedition.missions.some(m => m.region === index && m.kind === 'delivery' && m.place === place))) return false;
+    if (kind === 'final' && (region.discovered < 7 || region.finalClaimed || game.expedition.missions.some(m => m.region === index && m.kind === 'final'))) return false;
     const job = kind === 'endless' ? game.expedition.jobs.find(item => item.id === place && item.region === index) : null;
     if (kind === 'endless' && (!region.endlessUnlocked || !job)) return false;
     if (!['delivery', 'final', 'endless'].includes(kind)) return false;
     const now = Date.now();
+    const transport = job ? expeditionTransportPlan(job, truckById(truckId), now) : null;
     if (job) game.expedition.jobs.splice(game.expedition.jobs.indexOf(job), 1);
-    game.expedition.missions.push({ id: game.expedition.nextMission++, jobId: job?.id, tier: job?.tier, region: index, kind, lootKind: job?.kind || 'material', place, truckId, startedAt: now, endsAt: now + expeditionDuration(index, kind, place), status: 'active' });
-    addEvent(`${truckId} startet ${kind === 'endless' ? 'Endlosauftrag' : kind === 'final' ? 'Großauftrag' : 'Ortsmission'} in ${EXPEDITION_REGIONS[index]}.`);
+    game.expedition.missions.push({ id: game.expedition.nextMission++, jobId: job?.id, tier: job?.tier, region: index, kind, lootKind: job?.kind || 'material', place, truckId, startedAt: now, endsAt: transport ? transport.tours.at(-1).endsAt : now + expeditionDuration(index, kind, place), transport, status: 'active' });
+    addEvent(`${truckId} startet ${kind === 'endless' ? 'Expeditionsauftrag' : kind === 'final' ? 'einmaligen Endlosort-Auftrag' : 'Ortsmission'} in ${EXPEDITION_REGIONS[index]}.`);
     save(); render(); return true;
   }
   function awardExpeditionLoot(mission) {
@@ -790,44 +1053,79 @@
     game.coins = round2(game.coins + coins);
     game.stats.expeditionRevenue = round2((game.stats.expeditionRevenue || 0) + coins);
     const reward = [`${coins} M`];
-    // Each drawn job keeps its category through transport and settlement.
-    const tiers = ['uncommon', 'common', 'rare', 'epic'];
+    // Jede Shardrolle nutzt den gespeicherten Auftragsrang; Stufe 1/2 schließen höhere Seltenheiten aus.
     if (mission.lootKind === 'character' || Math.random() < .2) {
-      const tier = tiers[Math.min(3, Math.floor(region / 2) + (Math.random() < (region === 4 ? .4 : .12) ? 1 : 0))];
       const amount = 1 + (Math.random() < .2 + expeditionBonus('shards') / 100 ? 1 : 0);
-      expedition.shards[tier] += amount;
-      reward.push(`${amount} ${tier}-Shard${amount === 1 ? '' : 's'}`);
+      for (let i = 0; i < amount; i++) {
+        const rarity = rollExpeditionShard(expeditionJobTier(mission));
+        expedition.shards[rarity]++;
+        reward.push(`1 ${rarity}-Shard`);
+      }
     }
     const character = EXPEDITION_CHARACTERS[region];
-    const chance = (mission.lootKind === 'character' ? [.35, .20, .12, .06, .025][region] : 0) * (1 + expeditionBonus('loot') / 100);
+    const chance = (mission.lootKind === 'character' && region < 3 ? [.35, .20, .12][region] : 0) * (1 + expeditionBonus('loot') / 100);
     if (Math.random() < chance) {
       if (!expedition.characters[character.id]) { expedition.characters[character.id] = { level: 1, progress: 0 }; reward.push(character.name); }
-      else { expedition.specificShards[character.id] = (expedition.specificShards[character.id] || 0) + 1; reward.push(`1 ${character.name}-Shard`); }
+      else { expedition.shards[character.rarity]++; reward.push(`1 ${character.rarity}-Shard (Duplikat)`); }
     }
-    if (mission.lootKind === 'character') { expedition.specificShards[character.id] = (expedition.specificShards[character.id] || 0) + 1; reward.push(`1 ${character.name}-Shard`); }
+    if (mission.lootKind === 'character') {
+      const rarity = rollExpeditionShard(expeditionJobTier(mission));
+      expedition.shards[rarity]++;
+      reward.push(`1 ${rarity}-Shard`);
+    }
     if (mission.lootKind === 'material' && Math.random() < .003) { game.inventory.capacityModules++; reward.push('1 Kapazitätsmodul'); }
+    if (mission.lootKind === 'material') {
+      const items = Math.random() < COMPANY_BALANCE.materialItemChance ? COMPANY_BALANCE.materialItemsByTier[expeditionJobTier(mission) - 1] : 0;
+      mission.companyItemsAwarded = items;
+      if (items) {
+        game.inventory.companyItems = (game.inventory.companyItems || 0) + items;
+        reward.push(`${items} Firmenausbau-Item${items === 1 ? '' : 's'}`);
+      }
+    }
     mission.reward = reward.join(' · ');
   }
   function settleExpeditions(now = Date.now()) {
     let changed = regenerateExpedition(now);
     for (const mission of game.expedition.missions) {
-      if (mission.status !== 'active' || mission.endsAt > now) continue;
+      if (mission.status !== 'active') continue;
+      if (mission.kind === 'endless' && mission.transport) {
+        const transport = mission.transport;
+        while (transport.completedTours < transport.tours.length && transport.tours[transport.completedTours].endsAt <= now) {
+          transport.delivered = round2(transport.delivered + transport.tours[transport.completedTours].cargo);
+          transport.completedTours++;
+          changed = true;
+        }
+        if (transport.completedTours < transport.tours.length) continue;
+        transport.delivered = transport.volume;
+      } else if (mission.endsAt > now) continue;
       mission.status = 'completed';
       const region = game.expedition.regions[mission.region];
-      if (mission.kind === 'delivery' && !region.deliveries[mission.place]) {
-        region.deliveries[mission.place] = true;
-        mission.reward = '+1 maximale Expeditionskapazität';
-      } else if (mission.kind === 'final' && !region.endlessUnlocked) {
-        region.endlessUnlocked = true;
-        game.inventory.capacityModules++;
-        mission.reward = `1 Kapazitätsmodul · ${customerById(EXPEDITION_CUSTOMER_IDS[mission.region]).name} freigeschaltet`;
-      } else if (mission.kind === 'endless') awardExpeditionLoot(mission);
+      if (mission.kind === 'delivery') mission.reward = '+1 maximale Expeditionskapazität · bereit zum Abholen';
+      else if (mission.kind === 'final') mission.reward = `${customerById(EXPEDITION_CUSTOMER_IDS[mission.region]).name} · Freischaltung bereit zum Abholen`;
+      else if (mission.kind === 'endless') awardExpeditionLoot(mission);
       addEvent(`${EXPEDITION_REGIONS[mission.region]}: ${mission.reward || 'Mission abgeschlossen'}.`);
       changed = true;
     }
-    if (game.expedition.missions.length > 120) game.expedition.missions = game.expedition.missions.filter(m => m.status === 'active').concat(game.expedition.missions.filter(m => m.status === 'completed').slice(-100));
+    if (game.expedition.missions.length > 120) {
+      const recentCompleted = game.expedition.missions.filter(m => m.status === 'completed').slice(-100);
+      game.expedition.missions = game.expedition.missions.filter(m => m.status === 'active' || (['delivery', 'final'].includes(m.kind) && !m.claimedAt && !recentCompleted.includes(m))).concat(recentCompleted);
+    }
     if (changed) save();
     return changed;
+  }
+  function claimExpeditionMission(missionId) {
+    const mission = game.expedition.missions.find(item => item.id === missionId && item.status === 'completed' && !item.claimedAt && ['delivery', 'final'].includes(item.kind));
+    if (!mission) return false;
+    const region = game.expedition.regions[mission.region];
+    if (mission.kind === 'delivery' && !region.deliveries[mission.place]) region.deliveries[mission.place] = true;
+    if (mission.kind === 'final' && !region.finalClaimed) {
+      region.finalClaimed = true;
+      region.customerUnlocked = true;
+    }
+    mission.claimedAt = Date.now();
+    mission.reward = mission.kind === 'delivery' ? '+1 maximale Expeditionskapazität abgeholt' : `${customerById(EXPEDITION_CUSTOMER_IDS[mission.region]).name} freigeschaltet`;
+    addEvent(`${EXPEDITION_REGIONS[mission.region]}: ${mission.reward}.`);
+    save(); render(); return true;
   }
   function assignCharacterSeat(id, seat) {
     if (!Number.isInteger(seat) || seat < 0 || seat >= 5 || !game.expedition.characters[id]) return false;
@@ -837,23 +1135,29 @@
     seats[seat] = id;
     save(); render(); return true;
   }
-  function giveCharacterShard(id, specific = false) {
+  function giveCharacterShard(id, fill = false) {
     const character = EXPEDITION_CHARACTERS.find(c => c.id === id);
     const card = game.expedition.characters[id];
     if (!character || !card || card.level >= 10) return false;
-    const tier = EXPEDITION_SHARD_TIERS[card.level - 1];
-    if (specific ? !game.expedition.specificShards[id] : !game.expedition.shards[tier]) return false;
-    if (specific) game.expedition.specificShards[id]--; else game.expedition.shards[tier]--;
-    card.progress++;
-    const needed = card.level * EXPEDITION_RARITY_COST[character.rarity];
-    if (card.progress >= needed) { card.level++; card.progress = 0; addEvent(`${character.name} erreicht Stufe ${card.level}.`); }
+    const tier = character.rarity;
+    const available = game.expedition.shards[tier] || 0;
+    if (!available) return false;
+    const needed = CHARACTER_LEVEL_COSTS[card.level - 1];
+    const amount = Math.min(available, fill ? Math.ceil(needed - card.progress) : 1);
+    game.expedition.shards[tier] -= amount;
+    card.progress += amount;
+    if (card.progress >= needed) {
+      card.progress = card.level < 9 ? Math.round((card.progress - needed) * 1000) / 1000 : 0;
+      card.level++;
+      addEvent(`${character.name} erreicht Stufe ${card.level}.`);
+    }
     save(); render(); return true;
   }
   function combineExpeditionShards(tier) {
-    const tiers = ['uncommon', 'common', 'rare', 'epic'];
+    const tiers = RARITIES.map(rarity => rarity.id);
     const index = tiers.indexOf(tier);
-    if (index < 0 || index >= tiers.length - 1 || game.expedition.shards[tier] < 5) return false;
-    game.expedition.shards[tier] -= 5;
+    if (index < 0 || index >= tiers.length - 1 || game.expedition.shards[tier] < SHARD_COMBINE_RATIO) return false;
+    game.expedition.shards[tier] -= SHARD_COMBINE_RATIO;
     game.expedition.shards[tiers[index + 1]]++;
     save(); render(); return true;
   }
@@ -867,9 +1171,17 @@
     const el = $('#toast'); el.textContent = message; el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
   }
-  function levelForXp(xp) {
-    let level = 1, start = 0, need = 100;
-    while (xp >= start + need) { start += need; level++; need = level * 100; }
+  function playerXpForNextLevel(level) { return level < 25 ? 100 * level : 4 * level * level; }
+  function levelForXp(xp, state) {
+    let level = 1, start = 0, need = playerXpForNextLevel(level);
+    while (xp >= start + need) { start += need; level++; need = playerXpForNextLevel(level); }
+    const floor = state?.levelFloor;
+    if (Number.isSafeInteger(floor) && floor >= level && floor > 1) {
+      let nextThreshold = start;
+      for (let current = level; current <= floor; current++) nextThreshold += playerXpForNextLevel(current);
+      const progressStart = Number.isFinite(state.levelFloorXp) ? state.levelFloorXp : xp;
+      return { level: floor, within: Math.max(0, xp - progressStart), need: nextThreshold - progressStart };
+    }
     return { level, within: xp - start, need };
   }
   function trustTotalForLevel(level) { return level * 110 + 5 * level * (level - 1); }
@@ -905,8 +1217,8 @@
   function truckById(id) { return game.trucks.find(t => t.id === id); }
   function companyFor() { return game.company; }
   function trucksAt() { return game.trucks; }
-  function dispatchCapacity() { return 5 + Math.floor(levelForXp(game.xp).level / 5); }
-  function hubCapacity() { return Math.max(1, Math.floor(levelForXp(game.xp).level * .75)); }
+  function dispatchCapacity() { return 5 + Math.floor(levelForXp(game.xp, game).level / 5); }
+  function hubCapacity() { return Math.max(1, Math.floor(levelForXp(game.xp, game).level * .75)); }
   function hub() { return game.hubs[0] || null; }
   function hubTrucks() { return game.trucks.filter(truck => truck.tier <= 1 && truck.hubAssigned); }
   function cityTruckCount() { return game.trucks.filter(truck => truck.tier <= 1).length; }
@@ -1037,9 +1349,14 @@
     if (!h || h.construction || h.salesLevel >= HUB_MAX_SALES_LEVEL) return;
     const level = h.salesLevel + 1;
     const cost = hubUpgradeContactCost(level);
-    if (game.inventory.supplierContacts < cost) return;
+    const itemCost = COMPANY_BALANCE.upgradeItems(level);
+    const coinCost = COMPANY_BALANCE.upgradeCoins(level);
+    if (game.inventory.supplierContacts < cost || game.inventory.companyItems < itemCost || game.coins < coinCost) return;
     settleHub(Date.now());
     game.inventory.supplierContacts -= cost;
+    game.inventory.companyItems -= itemCost;
+    game.coins = round2(game.coins - coinCost);
+    game.stats.hubUpgradeSpent = (game.stats.hubUpgradeSpent || 0) + coinCost;
     const startedAt = Date.now();
     h.construction = { level, startedAt, finishAt: startedAt + level * 12 * HUB_CYCLE_MS };
     addEvent(`Stadthub: Vertrieb Stufe ${level} im Ausbau (${level * 12} Stunden).`);
@@ -1054,6 +1371,39 @@
     game.orders.push(order);
     addEvent(`${PRIVATE_PICKUP_HINT_COST} Abholhinweise zu Privatabholung ${order.id} kombiniert.`);
     save(); render(); showToast('Privatabholung in Vorräte gelegt.');
+  }
+  function craftCustomerOrder() {
+    const customers = CUSTOMERS.filter(customer => customerUnlocked(customer.id));
+    if (!customers.length || game.inventory.companyItems < COMPANY_BALANCE.craftedOrderItems) return false;
+    const customer = pick(customers);
+    const order = createOrder(game.nextOrder, { category: customer.category, customer: customer.id });
+    order.kind = 'normal';
+    order.crafted = true;
+    order.status = 'queued';
+    game.inventory.companyItems -= COMPANY_BALANCE.craftedOrderItems;
+    game.nextOrder++;
+    game.orders.push(order);
+    addEvent(`${customer.name}: Kundenauftrag ${order.id} hergestellt.`);
+    save(); render(); showToast('Kundenauftrag in Vorräte gelegt.');
+    return true;
+  }
+  function openCraftedOrderDialog(orderId) {
+    const order = game.orders.find(item => item.id === orderId && item.crafted && item.status === 'queued');
+    if (!order) return;
+    const trucks = eligibleFreeTrucks(order);
+    $('#assign-title').textContent = `Kundenauftrag ${order.id}`;
+    $('#assign-description').textContent = `${customerById(order.customer).name} · ${categoryById(order.category).label} · ${order.from} → ${order.to} · ${tons(order.volume)} t · ${order.distance} km. Wähle einen passenden freien LKW.`;
+    $('#assign-vehicles').innerHTML = trucks.length ? trucks.map(truck => `<button type="button" class="assign-choice" data-choose-crafted="${truck.id}" data-order="${order.id}"><span><strong>${truck.symbol} ${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t pro Tour · ${duration(orderDuration(order, truck))}</small></span><span>Auftrag zuweisen ↗</span></button>`).join('') : '<p>Derzeit ist kein geeigneter LKW frei.</p>';
+    $('#assign-dialog').showModal();
+  }
+  function assignCraftedOrder(orderId, truckId) {
+    const order = game.orders.find(item => item.id === orderId && item.crafted && item.status === 'queued');
+    const truck = order && eligibleFreeTrucks(order).find(item => item.id === truckId);
+    if (!truck) return false;
+    order.status = 'active'; order.truckId = truck.id; order.tripStartAt = Date.now();
+    order.tripCargo = Math.min(truck.capacity, order.volume);
+    addEvent(`${truck.id} startet Kundenauftrag ${order.id}.`);
+    save(); $('#assign-dialog').close(); render(); return true;
   }
   function openPrivatePickupDialog(orderId) {
     const order = game.orders.find(item => item.id === orderId && item.kind === 'private' && item.status === 'queued');
@@ -1084,7 +1434,25 @@
   function offerUpgradeCost() { return 500 * ((companyFor().offerLevel || 0) + 1); }
   function workshopUpgradeCost() { return 100 * Math.ceil((companyFor().workshopLevel + 1) / 5); }
   function salesUpgradeCost() { return 500 * (companyFor().salesLevel + 1); }
-  function pinnedOrders() { return game.orders.filter(order => order.status === 'available' && order.pinned); }
+  function transportUpgradeCost(category, kind) {
+    const limits = TRANSPORT_UPGRADE_LIMITS[category];
+    if (!limits || !Object.hasOwn(limits, kind)) return null;
+    const level = companyFor().transportUpgrades[category][`${kind}Level`];
+    if (level >= limits[kind]) return null;
+    return { items: COMPANY_BALANCE.transportUpgradeItems(level + 1), coins: COMPANY_BALANCE.transportUpgradeCoins(kind, level + 1) };
+  }
+  function upgradeTransport(category, kind) {
+    const cost = transportUpgradeCost(category, kind);
+    if (!cost || game.inventory.companyItems < cost.items || game.coins < cost.coins) return false;
+    game.inventory.companyItems -= cost.items;
+    game.coins = round2(game.coins - cost.coins);
+    game.stats.transportUpgradeSpent = (game.stats.transportUpgradeSpent || 0) + cost.coins;
+    companyFor().transportUpgrades[category][`${kind}Level`]++;
+    addEvent(`${categoryById(category).label}: ${kind === 'premium' ? 'Prämie' : kind === 'volume' ? 'Menge' : 'Reichweite'} ausgebaut.`);
+    save(); render(); return true;
+  }
+  function pinnedOrders() { return game.orders.filter(order => order.status === 'available' && ['national', 'international'].includes(order.category) && order.pinned); }
+  function pinLimit() { return 1 + (companyFor().salesLevel || 0); }
   function unlockDepartment(id) {
     const price = id === 'dispatch' ? DISPATCH_UNLOCK_PRICE : id === 'workshop' ? WORKSHOP_UNLOCK_PRICE : id === 'sales' ? SALES_UNLOCK_PRICE : null;
     if (price === null || companyFor().departments[id] || game.coins < price) return;
@@ -1098,26 +1466,34 @@
   function upgradeSales() {
     if (!companyFor().departments.sales || companyFor().salesLevel >= MAX_SALES_LEVEL) return;
     const cost = salesUpgradeCost();
-    if (game.coins < cost) return;
+    const items = COMPANY_BALANCE.upgradeItems(companyFor().salesLevel + 1);
+    if (game.coins < cost || game.inventory.companyItems < items) return;
     game.coins = round2(game.coins - cost);
+    game.inventory.companyItems -= items;
     game.stats.salesUpgradeSpent += cost;
     companyFor().salesLevel++;
-    addEvent(`Vertrieb Stufe ${companyFor().salesLevel}: ${companyFor().salesLevel} Aufträge gleichzeitig anheftbar.`);
-    save(); render(); showToast(`${companyFor().salesLevel} Aufträge können jetzt gleichzeitig angeheftet werden.`);
+    addEvent(`Vertrieb Stufe ${companyFor().salesLevel}: ${pinLimit()} Aufträge gleichzeitig haltbar.`);
+    save(); render(); showToast(`${pinLimit()} Aufträge kannst du jetzt gleichzeitig halten.`);
   }
   function toggleOrderPin(orderId) {
-    const order = game.orders.find(o => o.id === orderId && o.status === 'available');
-    if (!order || !companyFor().departments.sales || !companyFor().salesLevel) return;
-    if (!order.pinned && pinnedOrders().length >= companyFor().salesLevel) return;
+    const order = game.orders.find(o => o.id === orderId && o.status === 'available' && ['national', 'international'].includes(o.category));
+    if (!order) return false;
+    if (!order.pinned && pinnedOrders().length >= pinLimit()) {
+      showToast(`Du kannst nur ${pinLimit()} ${pinLimit() === 1 ? 'Auftrag' : 'Aufträge'} halten.`);
+      return false;
+    }
     order.pinned = !order.pinned;
-    addEvent(`${order.id} ${order.pinned ? 'angeheftet' : 'gelöst'}.`);
-    save(); render(); showToast(order.pinned ? `${order.id} bleibt bei Angebotswechseln erhalten.` : `${order.id} ist nicht mehr angeheftet.`);
+    addEvent(`${order.id} ${order.pinned ? 'gehalten' : 'freigegeben'}.`);
+    save(); render(); showToast(order.pinned ? `${order.id} bleibt bei Angebotswechseln erhalten.` : `${order.id} ist wieder frei.`);
+    return true;
   }
   function upgradeWorkshop() {
     if (!companyFor().departments.workshop || companyFor().workshopLevel >= MAX_WORKSHOP_LEVEL) return;
     const cost = workshopUpgradeCost();
-    if (game.coins < cost) return;
+    const items = COMPANY_BALANCE.upgradeItems(companyFor().workshopLevel + 1);
+    if (game.coins < cost || game.inventory.companyItems < items) return;
     game.coins = round2(game.coins - cost);
+    game.inventory.companyItems -= items;
     game.stats.workshopUpgradeSpent += cost;
     companyFor().workshopLevel++;
     addEvent(`Werkstatt Stufe ${companyFor().workshopLevel}: −${rateMoney(companyFor().workshopLevel * .001)} M/km für jeden LKW.`);
@@ -1128,8 +1504,10 @@
     const currentLevel = companyFor().offerLevel || 0;
     if (currentLevel >= MAX_OFFER_LEVEL) return;
     const cost = offerUpgradeCost();
-    if (game.coins < cost) return;
+    const items = COMPANY_BALANCE.upgradeItems(currentLevel + 1);
+    if (game.coins < cost || game.inventory.companyItems < items) return;
     game.coins = round2(game.coins - cost);
+    game.inventory.companyItems -= items;
     game.stats.offerUpgradeSpent += cost;
     companyFor().offerLevel = currentLevel + 1;
     replenishOrders();
@@ -1140,7 +1518,7 @@
   function customerById(id) { return CUSTOMERS.find(c => c.id === id); }
   function customerUnlocked(id, state = game) {
     const regionIndex = EXPEDITION_CUSTOMER_IDS.indexOf(id);
-    return regionIndex >= 0 && Boolean(state?.expedition?.regions[regionIndex]?.endlessUnlocked);
+    return regionIndex >= 0 && Boolean(state?.expedition?.regions[regionIndex]?.customerUnlocked);
   }
   function categoryById(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
   function canTruckTakeOrder(truck, order) { return !truck.hubAssigned && categoryById(order.category).tiers.includes(truck.tier); }
@@ -1162,6 +1540,11 @@
   function tripSeconds(order, truck, cargo) { return order.distance / truckSpeed(truck, cargo); }
   function hasReturnLeg(order) { return order.routeType === 'single' || order.routeType === 'dual'; }
   function paidLegs(order) { return order.routeType === 'dual' ? 2 : 1; }
+  function completionPremium(order) {
+    if (order.kind === 'private') return 0;
+    const rules = transportRules(order.category);
+    return round2(order.volume * paidLegs(order) * (rules?.premiumPerTon || BASE_COMPLETION_PREMIUM_PER_TON) * (1 + (rules?.premiumBonus || 0)));
+  }
   function drivenLegs(order) { return hasReturnLeg(order) ? 2 : 1; }
   function tourSeconds(order, truck, cargo) {
     const outward = tripSeconds(order, truck, cargo);
@@ -1192,7 +1575,7 @@
       total.trips++;
       delivered += cargo;
     }
-    total.bonus = order.kind === 'private' ? 0 : round2(order.volume * paidLegs(order) * .1);
+    total.bonus = completionPremium(order);
     total.transportProfit = round2(total.revenue - total.cost);
     total.totalProfit = round2(total.transportProfit + total.bonus);
     return total;
@@ -1215,7 +1598,7 @@
     const km = Math.max(0, Number(truck.kmDriven) || 0);
     const rate = .95 - .8 * Math.min(km, 500000) / 500000;
     const price = Number.isFinite(truck.purchasePrice) ? truck.purchasePrice : TRUCKS[truck.tier].price;
-    return { coins: round2(price * rate), gears: saleGearRefund(truck), modulesLost: [0, 1, 4][truck.moduleCapacityLevel || 0] || 0 };
+    return { coins: round2(price * rate), gears: saleGearRefund(truck), modulesLost: truck.moduleCapacitySpent ?? (truck.moduleCapacityLevel || 0) };
   }
   function saleBlockReason(truck) {
     if (!truck) return 'Fahrzeug nicht gefunden.';
@@ -1293,10 +1676,17 @@
     }
     return Object.fromEntries(Object.entries(gears).filter(([, amount]) => amount > 0));
   }
-  function makeCompletionReward(order) {
+  function companyItemProgress(order, previous = game.inventory.companyItemTkmRemainder || 0) {
+    if (order.kind !== 'normal' || !TRANSPORT_BASE[order.category]) return { items: 0, remainder: previous };
+    const delivered = Math.min(order.volume, order.delivered ?? order.volume);
+    const loadedTonKm = Math.max(0, order.distance * delivered * paidLegs(order));
+    const total = previous + loadedTonKm;
+    return { items: Math.floor(total / COMPANY_BALANCE.tkmPerItem), remainder: total % COMPANY_BALANCE.tkmPerItem };
+  }
+  function makeCompletionReward(order, companyItems = 0) {
     const rules = SPECIAL_CHANCES[order.category];
     const moduleChance = order.kind === 'special' ? rules?.module : order.kind === 'referral' ? rules?.referralModule : 0;
-    return { coins: order.kind === 'private' ? 0 : round2(order.volume * paidLegs(order) * .1), gears: rollGearLoot(order), capacityModule: Boolean(moduleChance && Math.random() < moduleChance), supplierContacts: order.kind === 'private' ? 1 + (Math.random() < .2 ? 1 : 0) : 0, claimedAt: null };
+    return { coins: completionPremium(order), premiumPerTon: order.kind === 'private' ? 0 : BASE_COMPLETION_PREMIUM_PER_TON, premiumBonus: transportRules(order.category)?.premiumBonus || 0, gears: rollGearLoot(order), companyItems, capacityModule: Boolean(moduleChance && Math.random() < moduleChance), supplierContacts: order.kind === 'private' ? 1 + (Math.random() < .2 ? 1 : 0) : 0, claimedAt: null };
   }
   function queueCustomerTrip(source, kind) {
     const order = createOrder(game.nextOrder++, { category: source.category, customer: source.customer, startCity: source.homeCity, kind });
@@ -1351,15 +1741,15 @@
     for (const order of game.orders) {
       if (order.status !== 'active') continue;
       const truck = truckById(order.truckId);
-      if (!truck) { order.status = order.kind === 'normal' ? 'available' : 'queued'; order.truckId = null; order.tripStartAt = null; changed = true; continue; }
+      if (!truck) { order.status = order.kind === 'normal' && !order.crafted ? 'available' : 'queued'; order.truckId = null; order.tripStartAt = null; changed = true; continue; }
       while (order.status === 'active') {
         const cargo = order.tripCargo ?? Math.min(truck.capacity, order.volume - order.delivered);
         const tripMs = tourSeconds(order, truck, cargo) * 1000;
         if (now - order.tripStartAt < tripMs) break;
         const loadedCargo = cargo * paidLegs(order);
-        const beforeLevel = levelForXp(game.xp).level;
+        const beforeLevel = levelForXp(game.xp, game).level;
         const { revenue, cost } = tourEconomics(order, truck, cargo, order.delivered);
-        const earnedXp = round2(3 + loadedCargo);
+        const earnedXp = loadedCargo;
         game.coins = round2(game.coins + revenue - cost);
         game.xp = round2(game.xp + earnedXp);
         game.stats.trips++;
@@ -1374,10 +1764,10 @@
         order.tripStartAt += tripMs;
         order.tripCargo = Math.min(truck.capacity, order.volume - order.delivered);
         changed = true;
-        if (levelForXp(game.xp).level > beforeLevel) {
-          const levels = levelForXp(game.xp).level - beforeLevel;
+        if (levelForXp(game.xp, game).level > beforeLevel) {
+          const levels = levelForXp(game.xp, game).level - beforeLevel;
           game.expedition.points += 50 * levels;
-          addEvent(`Level ${levelForXp(game.xp).level} erreicht! +${50 * levels} Expeditionspunkte.`);
+          addEvent(`Level ${levelForXp(game.xp, game).level} erreicht! +${50 * levels} Expeditionspunkte.`);
         }
         if (order.delivered >= order.volume) {
           order.status = 'completed'; order.completedAt = order.tripStartAt; order.tripStartAt = null; order.tripCargo = null;
@@ -1388,7 +1778,9 @@
             const newLevel = customerLevel(game.customerTrust[order.customer]);
             if (newLevel > oldLevel) addEvent(`${customerById(order.customer).name}: Vertrauenslevel ${newLevel} erreicht.`);
           }
-          order.completionReward = makeCompletionReward(order);
+          const itemProgress = companyItemProgress(order);
+          game.inventory.companyItemTkmRemainder = itemProgress.remainder;
+          order.completionReward = makeCompletionReward(order, itemProgress.items);
           const rules = SPECIAL_CHANCES[order.category];
           if (rules && order.customer && order.kind === 'normal' && Math.random() < customerTripChance(order, 'award')) queueCustomerTrip(order, 'special');
           if (rules && order.customer && order.kind === 'special' && Math.random() < customerTripChance(order, 'referral')) queueCustomerTrip(order, 'referral');
@@ -1410,6 +1802,7 @@
     game.coins = round2(game.coins + reward.coins);
     game.stats.contractBonusRevenue = round2(game.stats.contractBonusRevenue + reward.coins);
     for (const { rarity, count } of rewardGearRows(reward)) game.inventory.gears[rarity.id] += count;
+    game.inventory.companyItems = (game.inventory.companyItems || 0) + (reward.companyItems || 0);
     if (reward.capacityModule) game.inventory.capacityModules++;
     if (reward.supplierContacts) game.inventory.supplierContacts += reward.supplierContacts;
     return true;
@@ -1425,7 +1818,7 @@
       save(); render();
     }
     $('#reward-dialog-title').textContent = `${order.cargo} · ${order.id}`;
-    $('#reward-dialog-content').innerHTML = `<p class="reward-summary">${order.kind === 'private' ? 'Privatabholung' : categoryById(order.category).label} · ${order.volume * paidLegs(order)} t transportiert</p>${reward.coins ? `<div class="reward-result"><div class="reward-result-icon">◈</div><div><strong>+${money(reward.coins)} M</strong><span>Auftragsprämie · 0,1 M je Tonne</span></div></div>` : ''}${rewardGearRows(reward).map(({ rarity, count }) => `<div class="reward-result reward-gear rarity-${rarity.id}"><div class="reward-result-icon">⚙</div><div><strong>+${integer(count)} ${rarity.label}-Zahnräder</strong><span>In deinen Vorräten gelagert</span></div></div>`).join('')}${reward.capacityModule ? '<div class="reward-result"><div class="reward-result-icon">▣</div><div><strong>+1 Kapazitätsmodul</strong><span>In deinen Vorräten gelagert</span></div></div>' : ''}${reward.supplierContacts ? `<div class="reward-result"><div class="reward-result-icon">⌖</div><div><strong>+${reward.supplierContacts} Lieferantenkontakte</strong><span>Für den Stadthub-Ausbau</span></div></div>` : ''}<p class="reward-claim-state">${newlyClaimed ? 'Prämie abgeholt und gespeichert.' : 'Diese Prämie wurde bereits abgeholt.'}</p>`;
+    $('#reward-dialog-content').innerHTML = `<p class="reward-summary">${order.kind === 'private' ? 'Privatabholung' : categoryById(order.category).label} · ${order.volume * paidLegs(order)} t transportiert</p>${reward.coins ? `<div class="reward-result"><div class="reward-result-icon">◈</div><div><strong>+${money(reward.coins)} M</strong><span>Auftragsprämie nach Abschluss</span></div></div>` : ''}${rewardGearRows(reward).map(({ rarity, count }) => `<div class="reward-result reward-gear rarity-${rarity.id}"><div class="reward-result-icon">⚙</div><div><strong>+${integer(count)} ${rarity.label}-Zahnräder</strong><span>In deinen Vorräten gelagert</span></div></div>`).join('')}${reward.companyItems ? `<div class="reward-result"><div class="reward-result-icon">▤</div><div><strong>+${integer(reward.companyItems)} Firmenausbau-Items</strong><span>In deinen Vorräten gelagert</span></div></div>` : ''}${reward.capacityModule ? '<div class="reward-result"><div class="reward-result-icon">▣</div><div><strong>+1 Kapazitätsmodul</strong><span>In deinen Vorräten gelagert</span></div></div>' : ''}${reward.supplierContacts ? `<div class="reward-result"><div class="reward-result-icon">⌖</div><div><strong>+${reward.supplierContacts} Lieferantenkontakte</strong><span>Für den Stadthub-Ausbau</span></div></div>` : ''}<p class="reward-claim-state">${newlyClaimed ? 'Prämie abgeholt und gespeichert.' : 'Diese Prämie wurde bereits abgeholt.'}</p>`;
     if (!$('#reward-dialog').open) $('#reward-dialog').showModal();
   }
 
@@ -1437,7 +1830,8 @@
     const gearRows = RARITIES.map(rarity => ({ rarity, count: pending.reduce((sum, order) => sum + (order.completionReward.gears?.[rarity.id] || 0), 0) })).filter(row => row.count);
     const modules = pending.filter(order => order.completionReward.capacityModule).length;
     const contacts = pending.reduce((sum, order) => sum + (order.completionReward.supplierContacts || 0), 0);
-    $('#bulk-reward-content').innerHTML = `<p class="reward-summary">${pending.length} ${pending.length === 1 ? 'Auftragsprämie' : 'Auftragsprämien'} zum Abholen</p>${totalCoins ? `<div class="reward-result"><div class="reward-result-icon">◈</div><div><strong>+${money(totalCoins)} M</strong><span>Auftragsprämien gesamt</span></div></div>` : ''}${gearRows.map(({ rarity, count }) => `<div class="reward-result reward-gear rarity-${rarity.id}"><div class="reward-result-icon">⚙</div><div><strong>${count} × ${rarity.label}-Zahnrad</strong><span>Für deine Vorräte</span></div></div>`).join('')}${modules ? `<div class="reward-result"><div class="reward-result-icon">▣</div><div><strong>${modules} × Kapazitätsmodul</strong><span>Für deine Vorräte</span></div></div>` : ''}${contacts ? `<div class="reward-result"><div class="reward-result-icon">⌖</div><div><strong>${contacts} × Lieferantenkontakt</strong><span>Für deinen Stadthub</span></div></div>` : ''}`;
+    const companyItems = pending.reduce((sum, order) => sum + (order.completionReward.companyItems || 0), 0);
+    $('#bulk-reward-content').innerHTML = `<p class="reward-summary">${pending.length} ${pending.length === 1 ? 'Auftragsprämie' : 'Auftragsprämien'} zum Abholen</p>${totalCoins ? `<div class="reward-result"><div class="reward-result-icon">◈</div><div><strong>+${money(totalCoins)} M</strong><span>Auftragsprämien gesamt</span></div></div>` : ''}${gearRows.map(({ rarity, count }) => `<div class="reward-result reward-gear rarity-${rarity.id}"><div class="reward-result-icon">⚙</div><div><strong>${count} × ${rarity.label}-Zahnrad</strong><span>Für deine Vorräte</span></div></div>`).join('')}${companyItems ? `<div class="reward-result"><div class="reward-result-icon">▤</div><div><strong>+${integer(companyItems)} Firmenausbau-Items</strong><span>Für deine Vorräte</span></div></div>` : ''}${modules ? `<div class="reward-result"><div class="reward-result-icon">▣</div><div><strong>${modules} × Kapazitätsmodul</strong><span>Für deine Vorräte</span></div></div>` : ''}${contacts ? `<div class="reward-result"><div class="reward-result-icon">⌖</div><div><strong>${contacts} × Lieferantenkontakt</strong><span>Für deinen Stadthub</span></div></div>` : ''}`;
     $('#bulk-reward-dialog').showModal();
   }
 
@@ -1467,7 +1861,8 @@
     const available = () => game.orders.filter(o => o.status === 'available' && o.category !== 'city');
     while (available().length > offerLimit()) {
       const excess = available();
-      const removable = excess.find(o => !o.pinned) || excess[0];
+      const removable = excess.find(o => !o.pinned);
+      if (!removable) break;
       game.orders = game.orders.filter(o => o !== removable);
     }
     while (available().length < offerLimit()) game.orders.push(createOrder(game.nextOrder++, { category: randomCategory() }));
@@ -1555,13 +1950,14 @@
     const truck = truckById(truckId);
     if (!truck) return false;
     const level = truck.moduleCapacityLevel || 0;
-    const cost = level === 0 ? 1 : level === 1 ? 3 : Infinity;
-    if (game.inventory.capacityModules < cost) return false;
-    game.inventory.capacityModules -= cost;
+    const maximum = TRUCKS[truck.tier]?.maxCapacityLevel ?? 0;
+    if (level >= maximum || game.inventory.capacityModules < 1) return false;
+    game.inventory.capacityModules--;
     truck.moduleCapacityLevel = level + 1;
-    truck.capacity = TRUCKS[truck.tier].capacity + truck.moduleCapacityLevel;
-    addEvent(`${truck.id}: Kapazität auf ${tons(truck.capacity)} t erhöht (${cost} Kapazitätsmodule).`);
-    save(); render(); showToast(`${truck.id}: +1 t Kapazität.`);
+    truck.moduleCapacitySpent = (truck.moduleCapacitySpent || 0) + 1;
+    truck.capacity = round2((truck.capacity ?? TRUCKS[truck.tier].capacity) + CAPACITY_PER_MODULE);
+    addEvent(`${truck.id}: Kapazität auf ${tons(truck.capacity)} t erhöht (1 Kapazitätsmodul).`);
+    save(); render(); showToast(`${truck.id}: +0,5 t Kapazität.`);
     return true;
   }
 
@@ -1582,7 +1978,7 @@
   function progress(order) { return clamp(order.delivered / order.volume * 100, 0, 100); }
 
   function renderStats() {
-    const level = levelForXp(game.xp);
+    const level = levelForXp(game.xp, game);
     $('#topbar-coins').textContent = `${money(game.coins)} M`;
     $('#topbar-level').textContent = level.level;
     const expeditionPoints = $('#topbar-expedition-points');
@@ -1635,7 +2031,9 @@
   }
   function renderInventory() {
     const privateTrips = game.orders.filter(order => order.kind === 'private' && ['queued', 'active'].includes(order.status));
+    const craftedTrips = game.orders.filter(order => order.crafted && ['queued', 'active'].includes(order.status));
     const materials = [
+      { name: 'Firmenausbau-Items', icon: '▤', amount: game.inventory.companyItems || 0, detail: `${integer(game.inventory.companyItemTkmRemainder || 0)} / ${integer(COMPANY_BALANCE.tkmPerItem)} beladene tkm zum nächsten Item` },
       { name: 'Abholhinweise', icon: '⌖', amount: game.inventory.pickupHints || 0, detail: 'Material für Privatabholungen' },
       { name: 'Lieferantenkontakte', icon: '◈', amount: game.inventory.supplierContacts || 0, detail: 'Material für den Stadthub' },
       { name: 'Kapazitätsmodule', icon: '▣', amount: game.inventory.capacityModules || 0, detail: 'Für LKW in der Garage' }
@@ -1647,14 +2045,19 @@
     const itemCard = item => `<article class="inventory-item ${item.rarity ? `rarity-${item.rarity}` : ''}"><span class="inventory-item-count" aria-label="Anzahl ${integer(item.amount)}">${integer(item.amount)}</span><span class="inventory-item-icon" aria-hidden="true">${item.icon}</span><div class="inventory-item-info"><strong>${item.name}</strong><small>${item.detail}</small></div></article>`;
     const section = (title, cards) => cards.length ? `<section class="inventory-section"><h2 class="inventory-section-title">${title}</h2><div class="inventory-item-grid">${cards.join('')}</div></section>` : '';
     const tripCards = privateTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">⌖</span><div class="inventory-item-info"><strong>Privatabholung</strong><small>${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-private="${order.id}">LKW zuweisen</button>` : ''}</article>`);
+    const craftedCards = craftedTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">◎</span><div class="inventory-item-info"><strong>${customerById(order.customer).name}</strong><small>${categoryById(order.category).label} · ${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-crafted="${order.id}">LKW zuweisen</button>` : ''}</article>`);
     const content = section('Materialien', materials.map(itemCard))
       + section('Zahnräder', gears.map(itemCard))
-      + section('Privatabholungen', tripCards);
+      + section('Privatabholungen', tripCards)
+      + section('Hergestellte Kundenaufträge', craftedCards);
     $('#inventory-content').innerHTML = content || '<div class="inventory-empty"><span class="inventory-empty-icon">▣</span><h2>Deine Vorräte sind leer</h2><p>Gesammelte Materialien und hergestellte Aufträge erscheinen hier.</p></div>';
   }
   function renderDevelopment() {
     const hints = game.inventory.pickupHints || 0;
-    $('#development-content').innerHTML = `<section class="panel development-section"><div class="section-head"><h2>Herstellungen</h2></div><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">⌖</span><div><h3>Privatabholung</h3><p>Stelle aus Abholhinweisen einen Auftrag her. Der fertige Auftrag erscheint in den Vorräten und kann dort einem LKW zugewiesen werden.</p></div></div><div class="development-recipe-action"><span class="development-material">Abholhinweise <strong>${integer(hints)} / ${PRIVATE_PICKUP_HINT_COST}</strong></span><button type="button" class="button button-primary" data-combine-hints ${hints < PRIVATE_PICKUP_HINT_COST ? 'disabled' : ''}>Privatabholung herstellen</button></div></article></section>`;
+    const items = game.inventory.companyItems || 0;
+    const customers = CUSTOMERS.filter(customer => customerUnlocked(customer.id));
+    $('#development-content').innerHTML = `<section class="panel development-section"><div class="section-head"><h2>Herstellungen</h2></div><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">⌖</span><div><h3>Privatabholung</h3><p>Stelle aus Abholhinweisen einen Auftrag her. Der fertige Auftrag erscheint in den Vorräten und kann dort einem LKW zugewiesen werden.</p></div></div><div class="development-recipe-action"><span class="development-material">Abholhinweise <strong>${integer(hints)} / ${PRIVATE_PICKUP_HINT_COST}</strong></span><button type="button" class="button button-primary" data-combine-hints ${hints < PRIVATE_PICKUP_HINT_COST ? 'disabled' : ''}>Privatabholung herstellen</button></div></article><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">◎</span><div><h3>Kundenauftrag</h3><p>Ein zufälliger freigeschalteter Stammkunde erhält einen normalen Auftrag. Der Auftrag bleibt in den Vorräten, bis du einen passenden LKW zuweist. Auch dieser Auftrag zählt nach Abschluss für den gemeinsamen Tonnenkilometer-Fortschritt.</p></div></div><div class="development-recipe-action"><span class="development-material">Firmenausbau-Items <strong>${integer(items)} / ${COMPANY_BALANCE.craftedOrderItems}</strong></span><button type="button" class="button button-primary" data-craft-customer ${!customers.length || items < COMPANY_BALANCE.craftedOrderItems ? 'disabled' : ''}>Kundenauftrag herstellen</button>${customers.length ? '' : '<small>Erst einen Stammkunden freischalten</small>'}</div></article></section>`;
+    $('#development-content').innerHTML += `<section class="panel development-section"><div class="section-head"><h2>Universelle Shards kombinieren</h2></div><p>${SHARD_COMBINE_RATIO} Shards einer Seltenheit ergeben 1 Shard der nächsthöheren Seltenheit.</p><div class="development-shard-grid">${RARITIES.map((rarity, index) => `<div class="expedition-shard"><strong>${rarity.label}: ${integer(game.expedition.shards[rarity.id])}</strong>${index < RARITIES.length - 1 ? `<button class="button button-outline" data-shard-combine="${rarity.id}" ${game.expedition.shards[rarity.id] < SHARD_COMBINE_RATIO ? 'disabled' : ''}>${SHARD_COMBINE_RATIO} zu 1 ${RARITIES[index + 1].label}</button>` : ''}</div>`).join('')}</div></section>`;
   }
   function renderHub() {
     const el = $('#hub-content');
@@ -1671,7 +2074,7 @@
     const phase = h.cashboxCycles >= HUB_CASHBOX_CYCLES ? 'Kassenbestand voll · bitte abholen' : cycleSeconds > 15 * 60 ? 'Verteilung läuft' : 'Pause bis zum nächsten Einkauf';
     const nextLevel = h.salesLevel + 1;
     const cost = hubUpgradeContactCost(nextLevel);
-    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung. Während der 45 Arbeitsminuten wachsen Kasse und Hinweise laufend.</p><button class="button button-primary" data-collect-hub ${h.cashboxCoins || h.cashboxHints ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, vorhanden ${game.inventory.supplierContacts}. Keine Münzkosten.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
+    el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung. Während der 45 Arbeitsminuten wachsen Kasse und Hinweise laufend.</p><button class="button button-primary" data-collect-hub ${h.cashboxCoins || h.cashboxHints ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, ${COMPANY_BALANCE.upgradeItems(nextLevel)} Firmenausbau-Items und ${money(COMPANY_BALANCE.upgradeCoins(nextLevel))} M.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost && game.inventory.companyItems >= COMPANY_BALANCE.upgradeItems(nextLevel) && game.coins >= COMPANY_BALANCE.upgradeCoins(nextLevel) ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
   }
   function renderSpecialTrips() {
     const el = $('#special-content');
@@ -1707,26 +2110,31 @@
         const ready = pending.filter(job => job.kind === type.kind && expeditionJobTier(job) === tier).length;
         const active = missions.filter(m => m.lootKind === type.kind && m.status === 'active' && expeditionJobTier(m) === tier).length;
         return `<button type="button" class="special-customer-card expedition-job-card" data-expedition-job-group="${type.kind}:${tier}"><span class="special-initials">${type.icon}</span><span><strong>${type.label} · Stufe ${tier}</strong><small>${ready} bereit · ${active} unterwegs</small></span><span>›</span></button>`;
-      }).join('')}</div></section>`).join('')}<section class="expedition-jobs-unassigned"><h2>Aufträge ohne Stufe</h2><p>Die Stufe dieser Aufträge ist noch nicht festgelegt. Sie können bereits gefahren werden.</p><div class="expedition-jobs-cards">${types.map(type => {
-        const ready = pending.filter(job => job.kind === type.kind && expeditionJobTier(job) === null).length;
-        const active = missions.filter(m => m.lootKind === type.kind && m.status === 'active' && expeditionJobTier(m) === null).length;
-        return `<button type="button" class="special-customer-card expedition-job-card" data-expedition-job-group="${type.kind}:open"><span class="special-initials">${type.icon}</span><span><strong>${type.label}</strong><small>${ready} bereit · ${active} unterwegs</small></span><span>›</span></button>`;
-      }).join('')}</div></section>`;
+      }).join('')}</div></section>`).join('')}`;
       return;
     }
     const [kind, tierText] = selectedExpeditionJobGroup.split(':');
-    const tier = tierText === 'open' ? null : Number(tierText);
+    const tier = Number(tierText);
     const type = types.find(item => item.kind === kind);
-    if (!type || (tier !== null && ![1, 2, 3].includes(tier))) { selectedExpeditionJobGroup = null; renderExpeditionJobs(); return; }
+    if (!type || ![1, 2, 3].includes(tier)) { selectedExpeditionJobGroup = null; renderExpeditionJobs(); return; }
     const ready = pending.filter(job => job.kind === kind && expeditionJobTier(job) === tier).sort((a, b) => a.createdAt - b.createdAt);
     const active = missions.filter(m => m.lootKind === kind && m.status === 'active' && expeditionJobTier(m) === tier);
     const completed = missions.filter(m => m.lootKind === kind && m.status === 'completed' && expeditionJobTier(m) === tier).slice(-20).reverse();
     const row = (title, meta, end) => `<article class="special-trip-row expedition-job-row"><div><strong>${title}</strong><small>${meta}</small></div><div>${end}</div></article>`;
-    el.innerHTML = `<button type="button" class="text-button special-back" data-expedition-job-back>← Übersicht</button><div class="page-heading"><div><div class="eyebrow">${tier === null ? 'OHNE STUFE' : `STUFE ${tier}`}</div><h2>${type.label}</h2></div><span class="pill pill-gray">${ready.length} bereit</span></div><h3>Verfügbare Aufträge</h3>${ready.length ? ready.map(job => row(`${expeditionJobLabel(kind)} #${job.id}`, `${EXPEDITION_REGIONS[job.region]} · ${Math.round(expeditionDuration(job.region, 'endless') / 3600000)} Stunden Fahrzeit`, `<button type="button" class="button button-primary" data-open-expedition-job="${job.region}:${job.id}">Auftrag durchführen</button>`)).join('') : '<p>Keine Aufträge offen.</p>'}<h3>Laufende Aufträge</h3>${active.length ? active.map(m => row(`${expeditionJobLabel(kind)} #${m.jobId || m.id}`, `${EXPEDITION_REGIONS[m.region]} · LKW ${m.truckId}`, `<strong>${countdown((m.endsAt - Date.now()) / 1000)}</strong><small>verbleibend</small>`)).join('') : '<p>Keine laufenden Aufträge.</p>'}<h3>Abgeschlossene Aufträge</h3>${completed.length ? completed.map(m => row(`${expeditionJobLabel(kind)} #${m.jobId || m.id}`, EXPEDITION_REGIONS[m.region], `<strong>Abgeschlossen</strong><small>${m.reward || 'Belohnung erhalten'}</small>`)).join('') : '<p>Noch keine Aufträge abgeschlossen.</p>'}`;
+    const readyRows = ready.length ? ready.map(job => row(`${expeditionJobLabel(kind)} #${job.id}`, `${EXPEDITION_REGIONS[job.region]} · ${expeditionJobVolume(job)} t · ${EXPEDITION_JOB_DISTANCE} km je Richtung`, `<button type="button" class="button button-primary" data-open-expedition-job="${job.region}:${job.id}">Auftrag durchführen</button>`)).join('') : '<p>Keine Aufträge offen.</p>';
+    const activeRows = active.length ? active.map(mission => {
+      const transport = mission.transport;
+      const progress = expeditionTransportProgress(mission);
+      const detail = transport ? `${tons(transport.delivered)} / ${tons(transport.volume)} t · ${transport.completedTours} / ${transport.tours.length} Touren · ${Math.round(progress)} %` : 'Unterwegs';
+      return row(`${expeditionJobLabel(kind)} #${mission.jobId || mission.id}`, `${EXPEDITION_REGIONS[mission.region]} · LKW ${mission.truckId} · ${detail}`, `<strong>${countdown((mission.endsAt - Date.now()) / 1000)}</strong><small>Restzeit</small><div class="mini-progress"><span style="width:${progress}%"></span></div>`);
+    }).join('') : '<p>Keine laufenden Aufträge.</p>';
+    const completedRows = completed.length ? completed.map(m => row(`${expeditionJobLabel(kind)} #${m.jobId || m.id}`, EXPEDITION_REGIONS[m.region], `<strong>Abgeschlossen</strong><small>${m.reward || 'Belohnung erhalten'}</small>`)).join('') : '<p>Noch keine Aufträge abgeschlossen.</p>';
+    el.innerHTML = `<button type="button" class="text-button special-back" data-expedition-job-back>← Übersicht</button><div class="page-heading"><div><div class="eyebrow">STUFE ${tier}</div><h2>${type.label}</h2></div><span class="pill pill-gray">${ready.length} bereit</span></div><h3>Verfügbare Aufträge</h3>${readyRows}<h3>Laufende Aufträge</h3>${activeRows}<h3>Abgeschlossene Aufträge</h3>${completedRows}`;
   }
   function renderOrders() {
     const secondsLeft = Math.max(0, Math.ceil((game.nextAutoRefreshAt - Date.now()) / 1000));
     $('#order-refresh-countdown').textContent = `${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`;
+    $('#held-offers-count').textContent = `${pinnedOrders().length} / ${pinLimit()} Aufträge gehalten`;
     const refreshButton = $('#refresh-orders');
     const refreshCost = manualRefreshCost();
     refreshButton.disabled = game.coins < refreshCost;
@@ -1738,7 +2146,8 @@
       const eligible = eligibleFreeTrucks(o);
       const actionLabel = eligible.length ? 'Zuweisen' : freeTrucks().length ? 'Passender LKW fehlt' : 'Kein LKW frei';
       const action = `<button class="button button-primary" data-assign="${o.id}" ${eligible.length ? '' : 'disabled'}>${actionLabel}</button>`;
-      const pinAction = companyFor().departments.sales && companyFor().salesLevel ? `<button class="pin-button ${o.pinned ? 'pinned' : ''}" data-pin="${o.id}" aria-pressed="${Boolean(o.pinned)}" title="${o.pinned ? 'Anheftung lösen' : 'Bei Angebotswechseln behalten'}" ${!o.pinned && pinnedOrders().length >= companyFor().salesLevel ? 'disabled' : ''}>${o.pinned ? '◆ Angeheftet' : '◇ Anheften'}</button>` : '';
+      const lockIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0${o.pinned ? 'v3' : ''}"/></svg>`;
+      const pinAction = `<button type="button" class="order-lock-toggle ${o.pinned ? 'locked' : ''}" data-pin="${o.id}" aria-pressed="${Boolean(o.pinned)}" aria-label="${o.pinned ? 'Auftrag freigeben' : 'Auftrag halten'}" title="${o.pinned ? 'Gehaltenen Auftrag freigeben' : 'Auftrag bei Angebotswechseln halten'}">${lockIcon}</button>`;
       const route = o.category === 'city' ? (startCityById(o.homeCity)?.city || o.from.split(' ')[0]) : `${o.from} → ${o.to}`;
       const customer = o.customer ? `<span class="order-customer-badge">★ ${customerById(o.customer).name}</span>` : '';
       const routeBadge = hasReturnLeg(o) ? `<span class="order-route-badge ${o.routeType === 'dual' ? 'order-route-dual' : ''}">${routeTypeLabel(o)}</span>` : '';
@@ -1749,7 +2158,8 @@
     const rows = trucks.map(t => {
       const order = game.orders.find(o => o.status === 'active' && o.truckId === t.id);
       const expedition = game.expedition.missions.find(m => m.status === 'active' && m.truckId === t.id);
-      return `<tr data-fleet-truck="${t.id}" tabindex="0" aria-label="Details zu ${t.model} ${t.id} öffnen"><td><span class="fleet-vehicle"><span class="fleet-vehicle-icon">${t.symbol}</span><span><strong>${t.model}</strong><small>${t.id}</small></span></span></td><td>${rarityBadge(t)}</td><td><span class="pill ${order || expedition || t.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expedition ? 'UNTERWEGS' : t.hubAssigned ? 'IM HUB' : 'FREI'}</span></td><td>${tons(t.capacity)} t</td><td>${speedLabel(truckSpeed(t))} / ${speedLabel(truckSpeed(t, t.capacity))}</td><td>${rateMoney(operatingCostPerKm(t))} M/km</td><td>${order ? `<span class="fleet-order">${order.id} · ${tons(order.delivered)}/${tons(order.volume)} t<small>Restzeit ${countdown(remainingOrderSeconds(order, t))}</small></span>` : expedition ? `Expedition · ${EXPEDITION_REGIONS[expedition.region]}<small>Restzeit ${countdown((expedition.endsAt - Date.now()) / 1000)}</small>` : t.hubAssigned ? 'Stadthub' : '–'}</td><td class="fleet-table-arrow">›</td></tr>`;
+      const expeditionLabel = expedition?.transport ? `${expeditionJobLabel(expedition.lootKind)} · ${tons(expedition.transport.delivered)}/${tons(expedition.transport.volume)} t · ${Math.round(expeditionTransportProgress(expedition))} %` : expedition ? `Expedition · ${EXPEDITION_REGIONS[expedition.region]}` : '';
+      return `<tr data-fleet-truck="${t.id}" tabindex="0" aria-label="Details zu ${t.model} ${t.id} öffnen"><td><span class="fleet-vehicle"><span class="fleet-vehicle-icon">${t.symbol}</span><span><strong>${t.model}</strong><small>${t.id}</small></span></span></td><td>${rarityBadge(t)}</td><td><span class="pill ${order || expedition || t.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expedition ? 'UNTERWEGS' : t.hubAssigned ? 'IM HUB' : 'FREI'}</span></td><td>${tons(t.capacity)} t</td><td>${speedLabel(truckSpeed(t))} / ${speedLabel(truckSpeed(t, t.capacity))}</td><td>${rateMoney(operatingCostPerKm(t))} M/km</td><td>${order ? `<span class="fleet-order">${order.id} · ${tons(order.delivered)}/${tons(order.volume)} t<small>Restzeit ${countdown(remainingOrderSeconds(order, t))}</small></span>` : expedition ? `${expeditionLabel}<small>Restzeit ${countdown((expedition.endsAt - Date.now()) / 1000)}</small>` : t.hubAssigned ? 'Stadthub' : '–'}</td><td class="fleet-table-arrow">›</td></tr>`;
     }).join('') || '<tr><td class="fleet-table-empty" colspan="8">Noch keine Fahrzeuge in dieser Gruppe.</td></tr>';
     return `<section class="fleet-section"><div class="fleet-section-heading"><h2>${title}</h2><span>${trucks.length} LKW</span></div><div class="fleet-table-wrap"><table class="fleet-table"><caption class="sr-only">${title}</caption><thead><tr><th>Fahrzeug</th><th>Stufe</th><th>Status</th><th>Kapazität</th><th>Tempo leer / beladen</th><th>Betriebskosten</th><th>Auftrag</th><th><span class="sr-only">Details</span></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
@@ -1775,16 +2185,18 @@
     const order = game.orders.find(o => o.status === 'active' && o.truckId === truck.id);
     const expeditionMission = game.expedition.missions.find(m => m.status === 'active' && m.truckId === truck.id);
     const currentCargo = order ? (order.tripCargo ?? Math.min(truck.capacity, order.volume - order.delivered)) : 0;
+    const expeditionDetail = expeditionMission?.transport ? `<div class="truck-dialog-order"><div class="upgrade-title"><span>${expeditionJobLabel(expeditionMission.lootKind)} · Stufe ${expeditionJobTier(expeditionMission)}</span><span>${tons(expeditionMission.transport.delivered)} / ${tons(expeditionMission.transport.volume)} t</span></div><div class="truck-dialog-route">${EXPEDITION_REGIONS[expeditionMission.region]} · ${expeditionMission.transport.completedTours} / ${expeditionMission.transport.tours.length} Touren · ${Math.round(expeditionTransportProgress(expeditionMission))} %</div><div class="truck-dialog-route">Restzeit ${countdown((expeditionMission.endsAt - Date.now()) / 1000)}</div><div class="mini-progress"><span style="width:${expeditionTransportProgress(expeditionMission)}%"></span></div></div>` : expeditionMission ? `<div class="truck-dialog-order">Expedition in ${EXPEDITION_REGIONS[expeditionMission.region]} · Restzeit ${countdown((expeditionMission.endsAt - Date.now()) / 1000)}</div>` : '';
     $('#truck-dialog-title').textContent = `${truck.symbol} ${truck.model} · ${truck.id}`;
-    $('#truck-dialog-content').innerHTML = `<div class="truck-dialog-status"><span class="pill ${order || expeditionMission || truck.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expeditionMission ? 'UNTERWEGS' : truck.hubAssigned ? 'IM HUB' : 'FREI'}</span> <span class="pill pill-gray">${startCityById(game.startCity).city}</span></div><div class="truck-dialog-facts"><div><span>Kapazität</span><strong>${tons(truck.capacity)} t pro Tour</strong></div><div><span>Tempo leer</span><strong>${speedLabel(truckSpeed(truck))}</strong></div><div><span>Tempo voll beladen</span><strong>${speedLabel(truckSpeed(truck, truck.capacity))}</strong></div><div><span>Fahrzeugpreis</span><strong>${rateMoney(operatingCostPerKm(truck))} M/km</strong></div></div>${order ? `<div class="truck-dialog-order"><div class="upgrade-title"><span>Aktueller Auftrag ${order.id}</span><span>${tons(order.delivered)} / ${tons(order.volume)} t</span></div><div class="truck-dialog-route">${order.cargo} · ${order.from} → ${order.to}</div><div class="truck-dialog-route">Aktuelle Ladung: ${tons(currentCargo)} t · ${speedLabel(truckSpeed(truck, currentCargo))} beladen · Restzeit Auftrag ${countdown(remainingOrderSeconds(order, truck))}</div><div class="mini-progress"><span style="width:${progress(order)}%"></span></div></div>` : expeditionMission ? `<div class="truck-dialog-order">Expedition in ${EXPEDITION_REGIONS[expeditionMission.region]} · Restzeit ${countdown((expeditionMission.endsAt - Date.now()) / 1000)}</div>` : truck.tier <= 1 ? `<button type="button" class="button button-outline truck-dialog-orders" data-go="hub">Zum Stadthub</button>` : `<button type="button" class="button button-outline truck-dialog-orders" data-truck-orders>Auftrag suchen</button>`}`;
+    $('#truck-dialog-content').innerHTML = `<div class="truck-dialog-status"><span class="pill ${order || expeditionMission || truck.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expeditionMission ? 'UNTERWEGS' : truck.hubAssigned ? 'IM HUB' : 'FREI'}</span> <span class="pill pill-gray">${startCityById(game.startCity).city}</span></div><div class="truck-dialog-facts"><div><span>Kapazität</span><strong>${tons(truck.capacity)} t pro Tour</strong></div><div><span>Tempo leer</span><strong>${speedLabel(truckSpeed(truck))}</strong></div><div><span>Tempo voll beladen</span><strong>${speedLabel(truckSpeed(truck, truck.capacity))}</strong></div><div><span>Fahrzeugpreis</span><strong>${rateMoney(operatingCostPerKm(truck))} M/km</strong></div></div>${order ? `<div class="truck-dialog-order"><div class="upgrade-title"><span>Aktueller Auftrag ${order.id}</span><span>${tons(order.delivered)} / ${tons(order.volume)} t</span></div><div class="truck-dialog-route">${order.cargo} · ${order.from} → ${order.to}</div><div class="truck-dialog-route">Aktuelle Ladung: ${tons(currentCargo)} t · ${speedLabel(truckSpeed(truck, currentCargo))} beladen · Restzeit Auftrag ${countdown(remainingOrderSeconds(order, truck))}</div><div class="mini-progress"><span style="width:${progress(order)}%"></span></div></div>` : expeditionDetail || (truck.tier <= 1 ? `<button type="button" class="button button-outline truck-dialog-orders" data-go="hub">Zum Stadthub</button>` : `<button type="button" class="button button-outline truck-dialog-orders" data-truck-orders>Auftrag suchen</button>`)}`;
     const rarity = truckRarity(truck);
     const gearCount = game.inventory.gears[rarity.id];
     const gearCost = rankGearCost(truck);
     const maxed = rarity.total >= MAX_RARITY_LEVEL;
     $('#truck-dialog-content').insertAdjacentHTML('afterbegin', `<div class="truck-rarity-panel rarity-${rarity.id}"><div><span class="truck-rarity-eyebrow">FAHRZEUGSTUFE</span><div class="truck-rarity-name">${rarity.label}</div><small>Gesamtstufe ${rarity.total} / ${MAX_RARITY_LEVEL}</small></div><div class="truck-rarity-level">${rarity.level} ★<small>/ 10</small></div></div><button type="button" class="button button-primary truck-rarity-upgrade" data-upgrade-rarity="${truck.id}" ${maxed || gearCount < gearCost ? 'disabled' : ''}>${maxed ? 'Maximale Fahrzeugstufe erreicht' : `+1 ★ · ${integer(gearCost)} ${rarity.label}-Zahnräder`}</button><p class="truck-rarity-note">${maxed ? 'Dieses Fahrzeug ist vollständig aufgewertet.' : `${integer(gearCount)} ${rarity.label}-Zahnräder vorhanden · ${integer(gearCost)} benötigt.`}</p>`);
     const capacityLevel = truck.moduleCapacityLevel || 0;
-    const moduleCost = capacityLevel === 0 ? 1 : 3;
-    $('#truck-dialog-content').insertAdjacentHTML('beforeend', `<div class="truck-capacity-panel"><h3>Kapazität ausbauen</h3><p>${tons(truck.capacity)} t · ${capacityLevel} / 2 Ausbauten · ${game.inventory.capacityModules || 0} Kapazitätsmodule vorhanden</p><button type="button" class="button button-primary" data-upgrade-capacity="${truck.id}" ${capacityLevel >= 2 || (game.inventory.capacityModules || 0) < moduleCost ? 'disabled' : ''}>${capacityLevel >= 2 ? 'Maximale Kapazität erreicht' : `+1 t · ${moduleCost} ${moduleCost === 1 ? 'Modul' : 'Module'}`}</button></div>`);
+    const maximumCapacityLevel = TRUCKS[truck.tier].maxCapacityLevel;
+    const maximumCapacity = TRUCKS[truck.tier].capacity + maximumCapacityLevel * CAPACITY_PER_MODULE;
+    $('#truck-dialog-content').insertAdjacentHTML('beforeend', `<div class="truck-capacity-panel"><h3>Kapazität ausbauen</h3><p>Ausbaustufe ${capacityLevel} / ${maximumCapacityLevel} · Aktuell ${tons(truck.capacity)} t · Maximum ${tons(maximumCapacity)} t · ${game.inventory.capacityModules || 0} Kapazitätsmodule vorhanden</p>${capacityLevel > maximumCapacityLevel ? '<p>Älterer Spielstand: Bereits erworbene Kapazität bleibt erhalten.</p>' : ''}<button type="button" class="button button-primary" data-upgrade-capacity="${truck.id}" ${capacityLevel >= maximumCapacityLevel || (game.inventory.capacityModules || 0) < 1 ? 'disabled' : ''}>${capacityLevel >= maximumCapacityLevel ? 'Maximale Kapazität erreicht' : '+0,5 t · 1 Kapazitätsmodul'}</button></div>`);
     const blocked = saleBlockReason(truck);
     $('#truck-dialog-content').insertAdjacentHTML('beforeend', `<div class="truck-sale-panel"><div class="truck-dialog-facts"><div><span>Gefahrene Kilometer</span><strong>${integer(truck.kmDriven || 0)} km</strong></div><div><span>Touren / Aufträge abgeschlossen</span><strong>${integer(truck.toursCompleted || 0)} / ${integer(truck.ordersCompleted || 0)}</strong></div></div>${truck.historyReconstructed ? '<p>Älterer Spielstand: Fahrten aus vorhandenen Aufträgen rekonstruiert. Frühere Fahrten können fehlen.</p>' : ''}<button type="button" class="button button-outline" data-open-sale="${truck.id}" ${blocked ? 'disabled' : ''}>Fahrzeug verkaufen</button>${blocked ? `<p>${blocked}</p>` : ''}</div>`);
   }
@@ -1807,7 +2219,7 @@
       ['Hub-Tonnen', `${money(hub()?.totalTons || 0)} <small>t</small>`, 'Im Stadthub verteilt'],
       ['Kilometer', `${integer(stats.km)} <small>km</small>`, 'Hin- und Rückfahrten'],
       ['Tonnenkilometer', `${integer(stats.tonKm)} <small>tkm</small>`, 'Tonnen × Kilometer'],
-      ['XP', integer(game.xp), `Spielerlevel ${levelForXp(game.xp).level}`],
+      ['XP', integer(game.xp), `Spielerlevel ${levelForXp(game.xp, game).level}`],
       ['Ertrag', `${money(stats.grossRevenue)} <small>M</small>`, 'Brutto aus Transporten'],
       ['Prämien', `${money(stats.contractBonusRevenue)} <small>M</small>`, 'Abgeholte Abschlussprämien'],
       ['Stadthub', `${money(stats.hubRevenue || 0)} <small>M</small>`, 'Abgeholter passiver Ertrag'],
@@ -1834,15 +2246,16 @@
       ['Auftragslisten ausbauen', `−${money(stats.offerUpgradeSpent)} M`],
       ['Werkstatt ausbauen', `−${money(stats.workshopUpgradeSpent)} M`],
       ['Vertrieb ausbauen', `−${money(stats.salesUpgradeSpent)} M`],
+      ['Transportsegmente ausbauen', `−${money(stats.transportUpgradeSpent || 0)} M`],
+      ['Stadthub-Vertrieb ausbauen', `−${money(stats.hubUpgradeSpent || 0)} M`],
       ...(stats.removedBranchRefund ? [['Erstattete Niederlassungen', `+${money(stats.removedBranchRefund)} M`]] : []),
       ['Manuelle Angebotswechsel', `−${money(stats.manualRefreshSpent)} M`],
       ['Aktuelles Guthaben', `${money(game.coins)} M`]
     ].map(([label, value], i, rows) => `<div class="finance-row ${i === rows.length - 1 ? 'total' : ''}"><span>${label}</span><strong>${value}</strong></div>`).join('');
   }
   function renderCustomers() {
-    $('#customer-list').innerHTML = CUSTOMERS.map(c => {
-      const regionIndex = EXPEDITION_CUSTOMER_IDS.indexOf(c.id);
-      if (!customerUnlocked(c.id)) return `<article class="customer-card customer-card-locked" aria-label="${c.name}, gesperrt"><div class="customer-avatar">${c.initials}</div><h3>${c.name}</h3><p>${c.industry} · ${categoryById(c.category).label}</p><span class="locked-message">GESPERRT</span><div class="locked-detail">Nach dem Großauftrag in ${EXPEDITION_REGIONS[regionIndex]} verfügbar. Bis dahin erscheinen keine Aufträge dieses Kunden.</div></article>`;
+    const unlocked = CUSTOMERS.filter(c => customerUnlocked(c.id));
+    $('#customer-list').innerHTML = unlocked.length ? unlocked.map(c => {
       const trust = game.customerTrust[c.id] || 0, level = customerLevel(trust), next = customerNext(trust);
       const start = trustTotalForLevel(level);
       const pct = next ? (trust - start) / (next - start) * 100 : 100;
@@ -1857,7 +2270,7 @@
       ].map(skill => `<div class="customer-skill-row"><span>${skill.label}<small>${skill.value}</small></span><button class="customer-skill-button" data-customer-skill="${skill.kind}" data-customer="${c.id}" aria-label="${skill.label} für ${c.name} erhöhen" title="1 Fähigkeitspunkt ausgeben" ${available && skills[skill.kind] < CUSTOMER_SKILL_LIMITS[skill.kind] ? '' : 'disabled'}>+</button></div>`).join('');
       const chanceText = base ? `<p>Aktuell: Sonderfahrt ${money((base.award + skills.special * .001) * 100)} % · Empfehlung ${money((base.referral + skills.referral * .001) * 100)} %</p>` : '';
       return `<article class="customer-card"><div class="customer-avatar">${c.initials}</div><h3>${c.name}</h3><p>${c.industry} · ${categoryById(c.category).label}</p><div class="customer-level"><span>Vertrauenslevel <strong>${level} / ${MAX_TRUST_LEVEL}</strong></span><span>${integer(trust)}${next ? ` / ${integer(next)}` : ''} Vertrauen</span></div><div class="mini-progress"><span style="width:${pct}%"></span></div><div class="customer-skills"><div class="customer-skill-heading"><span>FÄHIGKEITSPUNKTE</span><strong>${integer(spent)} verbraucht · ${integer(available)} frei</strong></div><p>1 Punkt je Aufstieg ab Level 0</p>${skillRows}${chanceText}</div></article>`;
-    }).join('');
+    }).join('') : '<div class="customer-locked"><div class="empty-icon">◎</div><h3>Noch keine Stammkunden</h3><p>Schließe den einmaligen Endlosort-Auftrag ab und hole seine Freischaltung ab.</p></div>';
   }
   function renderExpeditions() {
     const expedition = game.expedition;
@@ -1869,7 +2282,7 @@
       $('#expedition-regions').innerHTML = `<div class="expedition-region-list">${expedition.regions.map((region, index) => {
         const open = expeditionRegionOpen(index);
         const completed = region.deliveries.filter(Boolean).length;
-        return `<button type="button" class="expedition-region-card ${open ? '' : 'is-locked'}" data-expedition-region="${index}" ${open ? '' : 'disabled'}><span class="expedition-region-number">${String(index + 1).padStart(2, '0')}</span><span class="expedition-region-copy"><strong>${EXPEDITION_REGIONS[index]}</strong><small>Stammkunde: ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} · ${open ? `${region.discovered} / 7 Orte entdeckt · ${completed} / 7 Kapazitätsmissionen` : 'Nach dem Großauftrag der vorherigen Region verfügbar'}</small></span><span class="pill ${region.endlessUnlocked ? 'pill-green' : 'pill-gray'}">${region.endlessUnlocked ? 'ENDLOSORT OFFEN' : open ? 'IN ERFORSCHUNG' : 'GESPERRT'}</span><span class="expedition-region-arrow">${open ? '›' : '⌁'}</span></button>`;
+        return `<button type="button" class="expedition-region-card ${open ? '' : 'is-locked'}" data-expedition-region="${index}" ${open ? '' : 'disabled'}><span class="expedition-region-number">${String(index + 1).padStart(2, '0')}</span><span class="expedition-region-copy"><strong>${EXPEDITION_REGIONS[index]}</strong><small>${open ? `${region.discovered} / 7 Orte entdeckt · ${completed} / 7 Kapazitätsmissionen abgeholt · Endlosort-Auftrag ${region.finalClaimed ? 'abgeholt' : 'offen'}` : 'Nach Freilegung des vorherigen Endlosorts verfügbar'}</small></span><span class="pill ${expeditionRegionCompleted(region) ? 'pill-green' : 'pill-gray'}">${expeditionRegionCompleted(region) ? 'ABGESCHLOSSEN' : region.endlessUnlocked ? 'ENDLOSORT OFFEN' : open ? 'IN ERFORSCHUNG' : 'GESPERRT'}</span><span class="expedition-region-arrow">${open ? '›' : '⌁'}</span></button>`;
       }).join('')}</div>`;
     } else {
       const index = selectedExpeditionRegion;
@@ -1882,44 +2295,67 @@
         const state = complete ? 'complete' : discovered ? 'discovered' : place === region.discovered ? 'next' : 'locked';
         return `<button type="button" class="expedition-map-node ${state} ${selectedExpeditionNode === place ? 'selected' : ''}" data-expedition-node="${place}" aria-pressed="${selectedExpeditionNode === place}"><span>${place + 1}</span><small>Ort ${place + 1}</small></button>`;
       }).join('');
-      const endlessState = region.endlessUnlocked ? 'complete' : region.discovered === 7 ? 'next' : 'locked';
+      const endlessState = expeditionRegionCompleted(region) ? 'complete' : region.endlessUnlocked ? 'discovered' : region.discovered === 7 ? 'next' : 'locked';
       const selected = selectedExpeditionNode;
       let detail;
       if (selected < 7) {
         const discovered = selected < region.discovered;
         const done = region.deliveries[selected];
-        const running = active.find(m => m.kind === 'delivery' && m.place === selected);
-        detail = `<h3>Ort ${selected + 1}</h3>${!discovered ? selected === region.discovered ? `<p>Entdecke diesen Ort für ${expeditionDiscoveryCost(index, selected)} Expeditionspunkte.</p><button class="button button-primary" data-expedition-discover="${index}" ${expedition.points < expeditionDiscoveryCost(index, selected) ? 'disabled' : ''}>Ort entdecken · ${expeditionDiscoveryCost(index, selected)} Punkte</button>` : '<p>Entdecke zuerst die vorherigen Orte.</p>' : done ? '<p>Ortsmission abgeschlossen. Die maximale Expeditionskapazität wurde dauerhaft um 1 erhöht.</p>' : running ? `<p>${running.truckId} ist unterwegs · ${countdown((running.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Optionale LKW-Mission · ${Math.round(expeditionDuration(index, 'delivery', selected) / 3600000)} Stunden · einmalig +1 maximale Expeditionskapazität.</p>${truckChoices(index, 'delivery', selected)}`}`;
+        const mission = expedition.missions.find(m => m.region === index && m.kind === 'delivery' && m.place === selected);
+        detail = `<h3>Ort ${selected + 1}</h3>${!discovered ? selected === region.discovered ? `<p>Entdecke diesen Ort für ${expeditionDiscoveryCost(index, selected)} Expeditionspunkte.</p><button class="button button-primary" data-expedition-discover="${index}" ${expedition.points < expeditionDiscoveryCost(index, selected) ? 'disabled' : ''}>Ort entdecken · ${expeditionDiscoveryCost(index, selected)} Punkte</button>` : '<p>Entdecke zuerst die vorherigen Orte.</p>' : done ? '<p>Ortsmission abgeschlossen. +1 maximale Expeditionskapazität wurde abgeholt.</p>' : mission?.status === 'completed' ? `<p>Ortsmission abgeschlossen. Die Belohnung wartet auf dich.</p><button class="button button-primary" data-expedition-claim="${mission.id}">+1 Expeditionskapazität abholen</button>` : mission?.status === 'active' ? `<p>${mission.truckId} ist unterwegs · ${countdown((mission.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Optionale LKW-Mission · ${Math.round(expeditionDuration(index, 'delivery', selected) / 3600000)} Stunden · einmalig +1 maximale Expeditionskapazität.</p>${truckChoices(index, 'delivery', selected)}`}`;
       } else {
-        const finalRunning = active.find(m => m.kind === 'final');
+        const finalMission = expedition.missions.find(m => m.region === index && m.kind === 'final');
         const jobs = expedition.jobs.filter(job => job.region === index);
         const running = active.filter(m => m.kind === 'endless');
-        detail = `<h3>Endlosort</h3>${region.discovered < 7 ? '<p>Entdecke zuerst alle sieben Orte. Ihre optionalen LKW-Missionen dürfen später erledigt werden.</p>' : !region.endlessUnlocked ? finalRunning ? `<p>Großauftrag mit ${finalRunning.truckId} läuft · ${countdown((finalRunning.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Großauftrag · ${Math.round(expeditionDuration(index, 'final') / 3600000)} Stunden. Abschluss: 1 Kapazitätsmodul, ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} und nächste Region.</p>${truckChoices(index, 'final', 0)}` : `<p>Für 5 Punkte wird ein Auftrag ausgelost: Charakter 20 %, Material 75 %, Sonderfahrt 4,5 %, Empfehlung 0,5 %.</p><button class="button button-primary" data-expedition-draw="${index}" ${expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Auftrag auslosen · 5 Punkte</button><div class="expedition-job-summary"><strong>${jobs.length} bereit · ${running.length} unterwegs</strong><button type="button" class="button button-outline" data-go="expedition-jobs">Zu Expeditionsaufträgen</button></div>`}`;
+        const finalDetail = region.finalClaimed ? `<p>Einmaliger Transportauftrag abgeholt. ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} ist freigeschaltet.</p>` : finalMission?.status === 'completed' ? `<p>Einmaliger Transportauftrag abgeschlossen. Hole die Freischaltung ab.</p><button class="button button-primary" data-expedition-claim="${finalMission.id}">Stammkunden freischalten</button>` : finalMission?.status === 'active' ? `<p>Einmaliger Transportauftrag mit ${finalMission.truckId} läuft · ${countdown((finalMission.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Einmaliger Transportauftrag · ${Math.round(expeditionDuration(index, 'final') / 3600000)} Stunden. Nach Abschluss und Abholung wird ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} freigeschaltet.</p>${truckChoices(index, 'final', 0)}`;
+        detail = `<h3>Endlosort</h3>${region.discovered < 7 ? '<p>Entdecke zuerst alle sieben Orte. Ihre optionalen LKW-Missionen dürfen später erledigt werden.</p>' : `<p>Endlosort freigelegt · 1 Kapazitätsmodul erhalten · nächste Region offen.</p>${finalDetail}<button class="button button-primary" data-expedition-open="${index}">Endlosexpedition öffnen</button><div class="expedition-job-summary"><strong>${jobs.length} bereit · ${running.length} unterwegs · ${region.deliveries.filter(Boolean).length}/7 Ortsbelohnungen abgeholt</strong><button type="button" class="button button-outline" data-go="expedition-jobs">Zu Expeditionsaufträgen</button></div>`}`;
       }
       $('#expedition-regions').innerHTML = `<button class="button button-outline expedition-back" data-expedition-back>← Alle Regionen</button><section class="panel expedition-map-card"><div class="section-head"><div><div class="eyebrow">REGION ${index + 1}</div><h2>${EXPEDITION_REGIONS[index]}</h2></div><span class="pill ${region.endlessUnlocked ? 'pill-green' : 'pill-gray'}">${region.discovered}/7 Orte entdeckt</span></div><div class="expedition-map-layout"><div class="expedition-map-column"><div class="expedition-map">${nodes}<button type="button" class="expedition-map-node endless ${endlessState} ${selected === 7 ? 'selected' : ''}" data-expedition-node="7" aria-pressed="${selected === 7}"><span>∞</span><small>Endlosort</small></button></div><div class="expedition-map-legend"><span>● Entdecken</span><span>● Entdeckt</span><span>● Mission abgeschlossen</span></div></div><section class="expedition-node-detail">${detail}</section></div></section>`;
     }
     const recent = expedition.missions.filter(m => m.status === 'completed').slice(-8).reverse();
-    $('#expedition-history').innerHTML = recent.length ? recent.map(m => `<div class="expedition-history-row"><strong>${EXPEDITION_REGIONS[m.region]} · ${m.kind === 'endless' ? 'Endlosauftrag' : m.kind === 'final' ? 'Großauftrag' : `Ort ${m.place + 1}`}</strong><span>${m.reward || 'Abgeschlossen'}</span></div>`).join('') : '<p>Noch keine Expedition abgeschlossen.</p>';
+    $('#expedition-history').innerHTML = recent.length ? recent.map(m => `<div class="expedition-history-row"><strong>${EXPEDITION_REGIONS[m.region]} · ${m.kind === 'endless' ? 'Endlosauftrag' : m.kind === 'final' ? 'Einmaliger Endlosort-Auftrag' : `Ort ${m.place + 1}`}</strong><span>${m.reward || 'Abgeschlossen'}${['delivery', 'final'].includes(m.kind) && !m.claimedAt ? ` · <button class="button button-outline" data-expedition-claim="${m.id}">Abholen</button>` : ''}</span></div>`).join('') : '<p>Noch keine Expedition abgeschlossen.</p>';
     $('#expedition-history-panel').hidden = selectedExpeditionRegion === null;
+  }
+  function renderExpeditionDrawDialog(index) {
+    const region = game.expedition.regions[index];
+    if (!region?.endlessUnlocked || !expeditionRegionOpen(index)) return false;
+    const stageRows = EXPEDITION_STAGE_WEIGHTS[index].map((chance, tier) => `<span>Stufe ${tier + 1}: ${money(chance * 100)} %</span>`).join(' · ');
+    $('#expedition-draw-title').textContent = `${EXPEDITION_REGIONS[index]} · Endlosexpedition`;
+    $('#expedition-draw-content').innerHTML = `<p><strong>${integer(game.expedition.points)} / ${integer(expeditionCapacity())} Expeditionspunkte</strong></p><p>${index < 3 ? `Pro Auslosung: 2 % direkt ${EXPEDITION_CHARACTERS[index].name}; sonst ein Auftrag aus dem regionalen Pool.` : 'Pro Auslosung: ein Auftrag aus dem regionalen Pool. Epic- und Legendary-Figuren sind hier nicht erhältlich.'}</p><div class="expedition-draw-chances">${EXPEDITION_JOB_WEIGHTS.map(item => `<div><span>${expeditionJobLabel(item.kind)}</span><strong>${money(item.chance * 100)} %</strong></div>`).join('')}</div><p>${index < 3 ? `Bei Charakteraufträgen: ${money([.35, .20, .12][index] * 100)} % Grundchance auf ${EXPEDITION_CHARACTERS[index].name} beim Abschluss.` : 'Charakteraufträge dieser Region geben Shards, aber keinen direkten Figurenfund.'}</p><p>Auftragsstufen in dieser Region: ${stageRows}. Sonder- und Empfehlungsfahrten behalten ihre eigenen Transportwerte.</p><button type="button" class="button button-primary" data-expedition-draw="${index}" ${game.expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Expedition starten · 5 Punkte</button><p>Erhaltene Aufträge bleiben gespeichert. Einen LKW weist du danach separat zu.</p>`;
+    return true;
+  }
+  function openExpeditionDrawDialog(index) {
+    if (!renderExpeditionDrawDialog(index)) return;
+    $('#expedition-draw-dialog').showModal();
   }
   function renderPersonnel() {
     const expedition = game.expedition;
     const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', loot: 'Charakter-Fundchance' };
     $('#personnel-slots').innerHTML = expedition.seats.map((id, index) => `<div class="expedition-seat"><strong>Platz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id).name : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${index}">Entfernen</button>` : ''}</div>`).join('');
     $('#personnel-slot-count').textContent = `${expedition.seats.filter(Boolean).length} / 5 Plätze`;
-    $('#personnel-shards').innerHTML = ['uncommon', 'common', 'rare', 'epic'].map((tier, index) => `<div class="expedition-shard"><strong>${tier}: ${integer(expedition.shards[tier])}</strong>${index < 3 ? `<button class="button button-outline" data-shard-combine="${tier}" ${expedition.shards[tier] < 5 ? 'disabled' : ''}>5 zu 1 ${['common', 'rare', 'epic'][index]}</button>` : ''}</div>`).join('');
     $('#personnel-cards').innerHTML = EXPEDITION_CHARACTERS.map(c => {
       const card = expedition.characters[c.id];
-      if (!card) return `<article class="personnel-card"><span class="pill pill-gray">${c.rarity}</span><h3>Unbekannt</h3><p>${EXPEDITION_REGIONS[c.region]} · Endlosauftrag</p></article>`;
-      const tier = card.level < 10 ? EXPEDITION_SHARD_TIERS[card.level - 1] : null;
-      const cost = card.level * EXPEDITION_RARITY_COST[c.rarity];
+      if (!card) return `<article class="personnel-card"><span class="pill pill-gray">${c.rarity}</span><h3>Unbekannt</h3><p>${c.region < 3 ? `${EXPEDITION_REGIONS[c.region]} · Endlosauftrag` : 'Herkunft noch offen'}</p></article>`;
+      const tier = card.level < 10 ? c.rarity : null;
+      const cost = card.level < 10 ? CHARACTER_LEVEL_COSTS[card.level - 1] : 0;
       const bonus = c.base + (card.level - 1) * c.step;
-      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p><p>${tier ? `${card.progress}/${cost} Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-specific="${c.id}" ${expedition.specificShards[c.id] ? '' : 'disabled'}>Eigener Shard (${expedition.specificShards[c.id] || 0})</button>` : ''}<div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Platz ${seat + 1}</button>`).join('')}</div></article>`;
+      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p><p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Platz ${seat + 1}</button>`).join('')}</div></article>`;
     }).join('');
   }
   function renderCompany() {
     $('#company-department-intro').textContent = `Abteilungen am Hauptsitz in ${startCityById(game.startCity).city}`;
     $('#hub-capacity-text').textContent = `${cityTruckCount()} von ${hubCapacity()} Stadttransporterplätzen belegt. ${hub() ? 'Dein Stadthub ist geöffnet.' : 'Dein Stadthub kann kostenlos eröffnet werden.'}`;
+    $('#transport-item-stock').textContent = `${integer(game.inventory.companyItems || 0)} Firmenausbau-Items · ${integer(game.inventory.companyItemTkmRemainder || 0)} / ${integer(COMPANY_BALANCE.tkmPerItem)} tkm`;
+    $('#transport-upgrade-grid').innerHTML = ['national', 'international'].flatMap(category => ['premium', 'volume', 'range'].map(kind => {
+      const upgrade = companyFor().transportUpgrades[category];
+      const level = upgrade[`${kind}Level`];
+      const limit = TRANSPORT_UPGRADE_LIMITS[category][kind];
+      const rules = transportRules(category);
+      const cost = transportUpgradeCost(category, kind);
+      const value = kind === 'premium' ? `+${level} % auf die Abschlussprämie` : kind === 'volume' ? `${rules.minVolume}–${rules.maxVolume} t Auftragsmenge` : `${rules.minDistance}–${rules.maxDistance} km Obergrenze`;
+      const title = kind === 'premium' ? 'Prämie' : kind === 'volume' ? 'Menge' : 'Reichweite';
+      return `<article class="offer-upgrade-card"><div class="department-card-head"><h3>${categoryById(category).label} · ${title}</h3><span class="pill ${cost ? 'pill-gray' : 'pill-green'}">${level} / ${limit}</span></div><p>${value}</p><button type="button" class="button button-primary" data-upgrade-transport="${category}:${kind}" ${!cost || game.coins < cost.coins || game.inventory.companyItems < cost.items ? 'disabled' : ''}>${cost ? `${cost.items} Items + ${money(cost.coins)} M` : 'Maximal ausgebaut'}</button></article>`;
+    })).join('');
     $('#company-departments').innerHTML = DEPARTMENTS.map(department => {
       const unlocked = !!companyFor().departments[department.id];
       const status = department.id === 'hr' ? 'Neugestaltung in Vorbereitung' : !unlocked ? 'Gesperrt' : department.id === 'workshop' ? `Stufe ${companyFor().workshopLevel} / ${MAX_WORKSHOP_LEVEL}` : department.id === 'sales' ? `Stufe ${companyFor().salesLevel} / ${MAX_SALES_LEVEL}` : 'Freigeschaltet';
@@ -1931,8 +2367,9 @@
       const currentLevel = companyFor().offerLevel || 0;
       const maxed = currentLevel >= MAX_OFFER_LEVEL;
       const cost = maxed ? 0 : offerUpgradeCost();
-      const label = maxed ? 'Maximal ausgebaut' : game.coins < cost ? `Zu wenig Münzen · ${money(cost)} M` : `Ausbauen · ${money(cost)} M`;
-      $('#dispatch-upgrade-list').innerHTML = `<article class="offer-upgrade-card"><div class="department-card-head"><h3>Auftragsbörse</h3><span class="pill ${maxed ? 'pill-green' : 'pill-gray'}">Stufe ${currentLevel} / ${MAX_OFFER_LEVEL}</span></div><p>${offerLimit()} verfügbare Aufträge insgesamt${maxed ? ' · Maximum erreicht' : ' · nächste Stufe +1'}</p><div class="upgrade-pips">${Array.from({ length: MAX_OFFER_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < currentLevel ? 'filled' : ''}"></span>`).join('')}</div><button class="button button-primary" data-upgrade-offers="all" ${maxed || game.coins < cost ? 'disabled' : ''}>${label}</button></article>`;
+      const items = COMPANY_BALANCE.upgradeItems(currentLevel + 1);
+      const label = maxed ? 'Maximal ausgebaut' : `Ausbauen · ${items} Items + ${money(cost)} M`;
+      $('#dispatch-upgrade-list').innerHTML = `<article class="offer-upgrade-card"><div class="department-card-head"><h3>Auftragsbörse</h3><span class="pill ${maxed ? 'pill-green' : 'pill-gray'}">Stufe ${currentLevel} / ${MAX_OFFER_LEVEL}</span></div><p>${offerLimit()} verfügbare Aufträge insgesamt${maxed ? ' · Maximum erreicht' : ' · nächste Stufe +1'}</p><div class="upgrade-pips">${Array.from({ length: MAX_OFFER_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < currentLevel ? 'filled' : ''}"></span>`).join('')}</div><button class="button button-primary" data-upgrade-offers="all" ${maxed || game.coins < cost || game.inventory.companyItems < items ? 'disabled' : ''}>${label}</button></article>`;
     }
     $('#workshop-upgrades').hidden = selectedDepartmentId !== 'workshop' || !companyFor().departments.workshop;
     if (companyFor().departments.workshop) {
@@ -1944,8 +2381,9 @@
       $('#workshop-discount').textContent = `Aktuelle Fahrzeugpreise: ${vehicleCostRange()}`;
       $('#workshop-pips').innerHTML = Array.from({ length: MAX_WORKSHOP_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < level ? 'filled' : ''}"></span>`).join('');
       const button = $('#workshop-upgrade-button');
-      button.disabled = maxed || game.coins < cost;
-      button.textContent = maxed ? 'Maximal ausgebaut' : game.coins < cost ? `Zu wenig Münzen · ${money(cost)} M` : `Nächste Stufe · ${money(cost)} M`;
+      const items = COMPANY_BALANCE.upgradeItems(level + 1);
+      button.disabled = maxed || game.coins < cost || game.inventory.companyItems < items;
+      button.textContent = maxed ? 'Maximal ausgebaut' : `Nächste Stufe · ${items} Items + ${money(cost)} M`;
     }
     $('#sales-upgrades').hidden = selectedDepartmentId !== 'sales' || !companyFor().departments.sales;
     if (companyFor().departments.sales) {
@@ -1953,11 +2391,12 @@
       const maxed = level >= MAX_SALES_LEVEL;
       const cost = maxed ? 0 : salesUpgradeCost();
       $('#sales-level').textContent = `Stufe ${level} / ${MAX_SALES_LEVEL}`;
-      $('#sales-pin-count').textContent = `${pinnedOrders().length} / ${level} angeheftet`;
+      $('#sales-pin-count').textContent = `${pinnedOrders().length} / ${pinLimit()} gehalten`;
       $('#sales-pips').innerHTML = Array.from({ length: MAX_SALES_LEVEL }, (_, i) => `<span class="upgrade-pip ${i < level ? 'filled' : ''}"></span>`).join('');
       const button = $('#sales-upgrade-button');
-      button.disabled = maxed || game.coins < cost;
-      button.textContent = maxed ? 'Maximal ausgebaut' : game.coins < cost ? `Zu wenig Münzen · ${money(cost)} M` : `Stufe ${level + 1} freischalten · ${money(cost)} M`;
+      const items = COMPANY_BALANCE.upgradeItems(level + 1);
+      button.disabled = maxed || game.coins < cost || game.inventory.companyItems < items;
+      button.textContent = maxed ? 'Maximal ausgebaut' : `Stufe ${level + 1} · ${items} Items + ${money(cost)} M`;
     }
     renderDepartmentDialog();
   }
@@ -2047,9 +2486,13 @@
     const job = game.expedition.jobs.find(item => item.id === jobId && item.region === region);
     if (!job || !game.expedition.regions[region]?.endlessUnlocked) return;
     $('#assign-title').textContent = `${expeditionJobLabel(job.kind)} #${job.id}`;
-    $('#assign-description').textContent = `${EXPEDITION_REGIONS[region]} · ${Math.round(expeditionDuration(region, 'endless') / 3600000)} Stunden Fahrzeit. Wähle einen freien regulären LKW.`;
+    $('#assign-description').textContent = `${EXPEDITION_REGIONS[region]} · Stufe ${expeditionJobTier(job)} · ${expeditionJobVolume(job)} t · ${EXPEDITION_JOB_DISTANCE} km hin und ${EXPEDITION_JOB_DISTANCE} km zurück je Tour. Wähle einen freien regulären LKW.`;
     const trucks = freeTrucks().filter(truck => truck.tier >= 2);
-    $('#assign-vehicles').innerHTML = trucks.length ? trucks.map(truck => `<button type="button" class="assign-choice" data-choose-expedition="${region}:${jobId}:${truck.id}"><span><strong>${truck.symbol} ${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${Math.round(expeditionDuration(region, 'endless') / 3600000)} Stunden Fahrzeit</small></span><span>Auftrag zuweisen ↗</span></button>`).join('') : '<p>Derzeit ist kein regulärer LKW frei.</p>';
+    $('#assign-vehicles').innerHTML = trucks.length ? trucks.map(truck => {
+      const plan = expeditionTransportPlan(job, truck);
+      const totalSeconds = (plan.tours.at(-1).endsAt - plan.tours[0].startsAt) / 1000;
+      return `<button type="button" class="assign-choice" data-choose-expedition="${region}:${jobId}:${truck.id}"><span><strong>${truck.symbol} ${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t pro Tour · ${plan.tours.length} Touren · ca. ${duration(totalSeconds)}</small></span><span>Auftrag zuweisen ↗</span></button>`;
+    }).join('') : '<p>Derzeit ist kein regulärer LKW frei.</p>';
     $('#assign-dialog').showModal();
   }
 
@@ -2064,7 +2507,9 @@
     if (target.dataset.collectHub !== undefined) collectHub();
     if (target.dataset.upgradeHub !== undefined) startHubUpgrade();
     if (target.dataset.combineHints !== undefined) combinePickupHints();
+    if (target.dataset.craftCustomer !== undefined) craftCustomerOrder();
     if (target.dataset.startPrivate) openPrivatePickupDialog(target.dataset.startPrivate);
+    if (target.dataset.startCrafted) openCraftedOrderDialog(target.dataset.startCrafted);
     if (target.dataset.buy !== undefined) buyTruck(Number(target.dataset.buy));
     if (target.dataset.upgradeRarity) upgradeTruckRarity(target.dataset.upgradeRarity);
     if (target.dataset.upgradeCapacity) upgradeTruckCapacity(target.dataset.upgradeCapacity);
@@ -2088,11 +2533,21 @@
     if (target.dataset.upgradeOffers) upgradeOfferLimit(target.dataset.upgradeOffers);
     if (target.dataset.upgradeWorkshop !== undefined) upgradeWorkshop();
     if (target.dataset.upgradeSales !== undefined) upgradeSales();
+    if (target.dataset.upgradeTransport) {
+      const [category, kind] = target.dataset.upgradeTransport.split(':');
+      upgradeTransport(category, kind);
+    }
     if (target.dataset.customerSkill) allocateCustomerSkill(target.dataset.customer, target.dataset.customerSkill);
     if (target.dataset.expeditionRegion !== undefined) { selectedExpeditionRegion = Number(target.dataset.expeditionRegion); selectedExpeditionNode = Math.min(game.expedition.regions[selectedExpeditionRegion].discovered, 7); renderExpeditions(); }
     if (target.dataset.expeditionBack !== undefined) { selectedExpeditionRegion = null; renderExpeditions(); }
     if (target.dataset.expeditionNode !== undefined) { selectedExpeditionNode = Number(target.dataset.expeditionNode); renderExpeditions(); }
-    if (target.dataset.expeditionDraw !== undefined) drawExpeditionJob(Number(target.dataset.expeditionDraw));
+    if (target.dataset.expeditionOpen !== undefined) openExpeditionDrawDialog(Number(target.dataset.expeditionOpen));
+    if (target.dataset.expeditionDraw !== undefined) {
+      const index = Number(target.dataset.expeditionDraw);
+      const found = drawExpeditionJob(index);
+      if (found && renderExpeditionDrawDialog(index)) $('#expedition-draw-content').insertAdjacentHTML('afterbegin', `<p class="expedition-draw-result">Gefunden: ${found === 'directCharacter' ? EXPEDITION_CHARACTERS[index].name : expeditionJobLabel(found)}</p>`);
+    }
+    if (target.dataset.expeditionClaim !== undefined) claimExpeditionMission(Number(target.dataset.expeditionClaim));
     if (target.dataset.expeditionDiscover !== undefined) discoverExpeditionPlace(Number(target.dataset.expeditionDiscover));
     if (target.dataset.expeditionStart) {
       const [region, kind, place, truckId] = target.dataset.expeditionStart.split(':');
@@ -2104,7 +2559,7 @@
     }
     if (target.dataset.characterRemove !== undefined) { game.expedition.seats[Number(target.dataset.characterRemove)] = null; save(); render(); }
     if (target.dataset.characterShard) giveCharacterShard(target.dataset.characterShard);
-    if (target.dataset.characterSpecific) giveCharacterShard(target.dataset.characterSpecific, true);
+    if (target.dataset.characterFill) giveCharacterShard(target.dataset.characterFill, true);
     if (target.dataset.shardCombine) combineExpeditionShards(target.dataset.shardCombine);
     if (target.dataset.startCity) chooseStartCity(target.dataset.startCity);
     if (target.dataset.pin) toggleOrderPin(target.dataset.pin);
@@ -2112,6 +2567,7 @@
     if (target.dataset.choose) assignOrder(target.dataset.order, target.dataset.choose);
     if (target.dataset.chooseSpecial) assignCustomerTrip(target.dataset.order, target.dataset.chooseSpecial);
     if (target.dataset.choosePrivate) assignPrivatePickup(target.dataset.order, target.dataset.choosePrivate);
+    if (target.dataset.chooseCrafted) assignCraftedOrder(target.dataset.order, target.dataset.chooseCrafted);
     if (target.dataset.claimOrder) claimOrderReward(target.dataset.claimOrder);
   });
   $('#fleet-list').addEventListener('click', event => {
@@ -2126,6 +2582,7 @@
     openTruckDialog(row.dataset.fleetTruck);
   });
   $('#close-truck-dialog').addEventListener('click', () => $('#truck-dialog').close());
+  $('#close-expedition-draw').addEventListener('click', () => $('#expedition-draw-dialog').close());
   $('#truck-dialog').addEventListener('close', () => { selectedTruckId = null; });
   $('#cancel-sale').addEventListener('click', () => $('#sale-dialog').close());
   $('#close-sale-dialog').addEventListener('click', () => $('#sale-dialog').close());

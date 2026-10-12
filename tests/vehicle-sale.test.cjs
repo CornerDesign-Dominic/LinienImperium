@@ -22,7 +22,7 @@ api.mute();
 const state = api.newGame('hamburg');
 api.setGame(state);
 const starter = state.trucks[0];
-assert.equal(state.version, 37);
+assert.equal(state.version, 42);
 assert.equal(api.saleBlockReason(starter), null);
 assert.equal(api.saleQuote(starter).coins, 23750, 'free starter uses the current model price');
 assert.equal(api.openSaleDialog(starter.id), true);
@@ -46,11 +46,12 @@ assert.equal(api.saleQuote(purchased).coins, 150, 'rate is clamped after 500,000
 purchased.kmDriven = 0;
 purchased.rarityLevel = 41;
 purchased.moduleCapacityLevel = 2;
+purchased.moduleCapacitySpent = 2;
 const quote = api.saleQuote(purchased);
 assert.equal(quote.gears.common, 14500);
 assert.equal(quote.gears.epic, 72, 'half of the aggregate 145, rounded down once');
 assert.equal(quote.gears.legendary, 0, 'one invested gear rounds down');
-assert.equal(quote.modulesLost, 4);
+assert.equal(quote.modulesLost, 2);
 
 const busyOrder = { id: 'BUSY', status: 'active', truckId: purchased.id, distance: 10, volume: 4, delivered: 0, tripCargo: 4, tripStartAt: Date.now(), routeType: 'single', category: 'national', kind: 'normal' };
 state.orders = [busyOrder];
@@ -103,7 +104,7 @@ old.orders = [
 ];
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 37);
+assert.equal(migrated.version, 42);
 assert.equal(migrated.orders.length, 3, 'active and completed orders are retained');
 assert.equal(migrated.trucks[0].purchasePrice, null);
 assert.equal(migrated.trucks[0].kmDriven, 400);

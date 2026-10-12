@@ -97,7 +97,7 @@ old.inventory.gears.rare = 17;
 old.orders = [{ id: 'A-old', ...order('national'), completionReward: { coins: 2, gear: 'rare', capacityModule: false, claimedAt: null } }];
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 37);
+assert.equal(migrated.version, 42);
 assert.equal(migrated.trucks[0].rarityLevel, 23);
 assert.equal(migrated.inventory.gears.rare, 17);
 assert.deepEqual(JSON.parse(JSON.stringify(migrated.orders[0].completionReward.gears)), { rare: 1 });
@@ -107,6 +107,7 @@ assert.equal(migrated.inventory.gears.rare, 18);
 
 migrated.orders.push({ id: 'A-ref', ...order('national', 'referral', 'frischgut'), status: 'queued', completionReward: null });
 migrated.expedition.regions[0].endlessUnlocked = true;
+migrated.expedition.regions[0].customerUnlocked = true;
 api.setCustomer(null);
 api.renderSpecialTrips();
 const overview = element('#special-content').innerHTML;

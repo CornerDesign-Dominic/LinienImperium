@@ -16,9 +16,11 @@ const context = vm.createContext({
   Date, Math, Intl, Number, JSON, setTimeout, clearTimeout,
   document: { querySelector: element }
 });
-vm.runInContext(beforeEvents + '\n globalThis.api = { TRUCKS, newGame, loadGame, buyTruck, saleQuote, canTruckTakeOrder, operatingCostPerKm, renderDealer, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
+vm.runInContext(beforeEvents + '\n globalThis.api = { TRUCKS, CATEGORIES, newGame, loadGame, buyTruck, saleQuote, canTruckTakeOrder, operatingCostPerKm, renderDealer, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
 const api = context.api;
 api.mute();
+assert.equal(api.CATEGORIES.find(category => category.id === 'national').label, 'Regionalverkehr');
+assert.equal(api.CATEGORIES.find(category => category.id === 'international').label, 'Fernverkehr');
 
 const fresh = api.newGame('hamburg');
 assert.equal(fresh.coins, 1000);
@@ -53,8 +55,10 @@ for (const [tier, capacity, price, kmCost] of cases) {
   assert.equal(state.stats.truckSpent, price);
   assert.equal(api.operatingCostPerKm(bought), kmCost);
   assert.equal(api.saleQuote(bought).coins, price * .95);
-  assert.equal(api.canTruckTakeOrder(bought, { category: 'national' }), true);
+  assert.equal(api.canTruckTakeOrder(bought, { category: 'national' }), tier !== 4 && tier !== 6);
   assert.equal(api.canTruckTakeOrder(bought, { category: 'international' }), tier !== 2 && tier !== 3);
+  assert.equal(api.canTruckTakeOrder(bought, { category: 'national', kind: 'special' }), tier !== 4 && tier !== 6);
+  assert.equal(api.canTruckTakeOrder(bought, { category: 'international', kind: 'referral' }), tier !== 2 && tier !== 3);
 }
 api.setGame(fresh);
 api.renderDealer();
