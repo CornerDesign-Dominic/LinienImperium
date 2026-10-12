@@ -106,6 +106,7 @@ assert.equal(api.applyOrderReward(migrated.orders[0]), true);
 assert.equal(migrated.inventory.gears.rare, 18);
 
 migrated.orders.push({ id: 'A-ref', ...order('national', 'referral', 'frischgut'), status: 'queued', completionReward: null });
+migrated.expedition.regions[0].endlessUnlocked = true;
 api.setCustomer(null);
 api.renderSpecialTrips();
 const overview = element('#special-content').innerHTML;

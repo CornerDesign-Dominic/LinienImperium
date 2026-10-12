@@ -26,6 +26,9 @@ const state = api.newGame('hamburg');
 api.setGame(state);
 assert.equal(state.orders.filter(o => o.status === 'available' && o.category === 'city').length, 0);
 math.random = () => .099;
+assert.equal(api.createOrder(99, { category: 'national', level: 1 }).customer, null, 'locked customers do not appear');
+state.expedition.regions[0].endlessUnlocked = true;
+state.expedition.regions[4].endlessUnlocked = true;
 assert.equal(api.createOrder(100, { category: 'national', level: 1 }).customer !== null, true, '10% at level 1');
 assert.equal(api.createOrder(101, { category: 'international', level: 1 }).customer !== null, true);
 math.random = (() => { let i = 0; return () => [.1, .3, .7][i++ % 3]; })();
@@ -120,7 +123,7 @@ api.renderSpecialTrips();
 assert.match(element('#special-content').innerHTML, /Sonderfahrt durchführen/);
 api.setCustomer(null);
 api.renderSpecialTrips();
-assert.match(element('#special-content').innerHTML, /Frischgut AG/);
+assert.doesNotMatch(element('#special-content').innerHTML, /Frischgut AG/, 'locked customers without special trips stay hidden');
 
 math.random = (() => { let i = 0; return () => [.99, .2, .7][i++ % 3]; })();
 const old = api.newGame('hamburg');

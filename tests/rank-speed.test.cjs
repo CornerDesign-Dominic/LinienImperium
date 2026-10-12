@@ -136,7 +136,7 @@ assert.equal(migrated.company.workshopLevel, 2);
 assert.equal(migrated.company.salesLevel, 1);
 assert.equal(migrated.orders.some(order => order.id === 'A-1000'), false);
 assert.equal(migrated.orders.find(order => order.id === 'A-1001').homeCity, 'hamburg');
-assert.equal(migrated.orders[0].tripCargo, 18);
+assert.equal(migrated.orders[0].tripCargo, Math.min(18, migrated.orders[0].volume));
 assert.equal(api.loadGame().coins, 12800, 'refund is applied only once');
 const older = api.newGame('hamburg');
 older.trucks = [];

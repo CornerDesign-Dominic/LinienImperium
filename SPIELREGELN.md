@@ -12,7 +12,7 @@ Diese Datei beschreibt die **aktuell implementierten Werte und Freischaltungen**
 - Nach jeder abgeschlossenen Tour werden die transportierten Tonnen, Münzen und XP gebucht. Bei landesweiten und internationalen Aufträgen endet eine Tour erst nach Hin- und Rückfahrt. Die nächste Tour beginnt automatisch.
 - Sobald das gesamte Auftragsvolumen geliefert ist, wird der Auftrag abgeschlossen und der LKW wieder frei. Ohne neuen Auftrag fährt und verdient er nicht weiter.
 - Der Spielstand liegt lokal im Browser (`localStorage`). Beim erneuten Öffnen werden inzwischen fällige Touren nachberechnet. Konten und Firebase sind noch nicht eingebaut.
-- Die Firma startet ohne freigeschaltete Abteilungen und ohne Mitarbeitende. Das spätere Führungsteam im Modul „Personal“ hat fünf Kartenplätze; der Spieler belegt keinen davon.
+- Die Firma startet ohne freigeschaltete Abteilungen und ohne Mitarbeitende. Das Führungsteam im Modul „Personal“ hat fünf aktive Kartenplätze; der Spieler belegt keinen davon.
 
 ### Startorte und Auftragsumgebung
 
@@ -41,7 +41,7 @@ Für den Aufstieg von Level `L` auf `L + 1` werden `100 × L` weitere Spieler-XP
 | 12 | 6.600 |
 | 17 | 13.600 |
 
-Landesweite und internationale Aufträge sind von Anfang an verfügbar. Stammkunden sind ohne Spielerlevel-Sperre verfügbar.
+Landesweite und internationale Aufträge sind von Anfang an verfügbar. Stammkunden werden durch den Großauftrag der zugehörigen Expeditionsregion freigeschaltet, nicht durch Spielerlevel.
 
 ## 3. LKW und erlaubte Auftragsarten
 
@@ -104,7 +104,7 @@ Geografische Ausnahmen ohne hinterlegte realistische internationale LKW-Route in
 
 Die **gemeinsame Auftragsbörse** zeigt ab Spielbeginn **fünf verfügbare Angebote insgesamt**. Jeder neue Platz wird unabhängig mit **80 % Landesweit und 20 % International** besetzt. Die Disposition erweitert die gemeinsame Liste auf bis zu **15 Angebote**. Sobald ein Auftrag zugewiesen wird, wird sein Platz sofort neu ausgewürfelt und aufgefüllt. Die Auftragsseite zeigt nur verfügbare Angebote; Fortschritt laufender Aufträge ist in der Garage sichtbar. Die Liste zeigt die **Frachtvergütung** unabhängig vom LKW; das Zuweisungsfenster zerlegt den Gewinn je passendem LKW.
 
-Pro neuem landesweiten oder internationalen Angebot besteht unabhängig eine 10-%-Chance auf einen Stammkunden dieses Segments. Eine Liste kann daher auch ganz ohne Kundenauftrag sein.
+Pro neuem landesweiten oder internationalen Angebot besteht unabhängig eine 10-%-Chance auf einen bereits freigeschalteten Stammkunden dieses Segments. Eine Liste kann daher auch ganz ohne Kundenauftrag sein.
 
 Landesweite und internationale Angebote haben zusätzlich eine Fahrart: **90 % Single Way** und **10 % Dual Way**. Bei beiden fährt der LKW für jede Ladung zum Ziel und zurück zur Ladestelle. Beim Single Way bleibt die Rückfahrt leer und unbezahlt; beim Dual Way nimmt er am Ziel die gleiche Frachtmenge als Rückfracht mit. Die Strecke im Angebot bezeichnet eine einfache Fahrt. Laufende alte Stadtaufträge behalten ihre direkte Tour ohne Rückfahrt.
 
@@ -273,3 +273,17 @@ Der Münzerlös beträgt bei 0 gefahrenen Kilometern 95 % des maßgeblichen Kauf
 Je Seltenheit werden zunächst alle Zahnräder der erreichten Rangstufen addiert. Davon werden einmalig 50 % berechnet und auf ganze Zahnräder **abgerundet**. Es gibt keinen zusätzlichen Rangbonus in Münzen. Eingebaute Kapazitätsmodule (1 bei erster Stufe, insgesamt 4 bei zweiter Stufe) gehen endgültig verloren. Der Verkaufsdialog zeigt Münzen, Zahnräder jeder Seltenheit und verlorene Module vor der endgültigen Bestätigung. Ein neu gekauftes Fahrzeug beginnt wieder bei Rangstufe 0.
 
 Fahrzeugdetails zeigen gefahrene Kilometer sowie abgeschlossene Touren und Aufträge. Bei älteren Spielständen werden diese Werte aus den noch vorhandenen, dem Fahrzeug zugeordneten Aufträgen soweit möglich rekonstruiert. Bereits entfernte Aufträge und frühere pauschale Stadthub-Leistung lassen sich keinem einzelnen Fahrzeug zuverlässig zuordnen und erscheinen daher nicht in dessen Zähler. Neue, im Stadthub vollendete Hin- und Rückfahrten zählen je Fahrzeug mit 24 km als Tour; sie zählen nicht als abgeschlossene Einzelaufträge.
+
+## Expeditionen und Führungsteam
+
+Diese Mechanik ist bewusst ohne feste Welt oder Zeitepoche angelegt. Fünf Regionen enthalten je sieben Orte und einen wiederholbaren Endlosauftrag. Regionen öffnen nacheinander nach dem Großauftrag der vorherigen Region.
+
+- Start: 50 Expeditionspunkte. Unter der aktuellen Kapazität regeneriert sich 1 Punkt je 20 Minuten. Über der Kapazität pausiert die Regeneration. Jeder neu erreichte Spielerlevel gibt sofort 50 Punkte, auch über die Kapazität hinaus.
+- Orte werden der Reihe nach für Expeditionspunkte entdeckt. Die Kosten je Ort betragen `3 + 9 × Regionsindex + abrunden(Ortsindex / 2)`; beide Indizes beginnen bei null. Region 2 benötigt damit insgesamt 93 Punkte für ihre Orte. Die sieben optionalen Ortsmissionen können anschließend jeweils von einem freien regulären LKW gefahren werden. Jede bringt einmalig +1 maximale Expeditionskapazität. Ihre Erledigung ist keine Voraussetzung für weitere Entdeckungen.
+- Nach sieben entdeckten Orten kann ein freier regulärer LKW den Großauftrag fahren. Er kostet keine Expeditionspunkte. Sein erster Abschluss gibt einmalig ein Kapazitätsmodul, schaltet den zugehörigen Stammkunden und den Endlosauftrag frei und öffnet die nächste Region.
+- Eine Auslosung am Endlosort kostet 5 Expeditionspunkte. Sie ergibt genau einen Charakterauftrag (20 %), Materialauftrag (75 %), Sonderfahrtauftrag (4,5 %) oder Empfehlungsauftrag (0,5 %). Charakter- und Materialaufträge bleiben bis zur LKW-Zuweisung gespeichert und können mit verschiedenen LKW parallel gefahren werden. Sie stehen im eigenen Reiter **Expeditionsaufträge** mit drei Stufenspalten und einer Zeile je Auftragsart. Die Zuordnung einer Auftragsstufe hängt künftig von der Region ab; bis diese Regel festgelegt ist, bleiben ausgeloste Aufträge unter „Ohne Stufe“ sichtbar und fahrbar. Sonderfahrten und Empfehlungsaufträge landen sofort in der bestehenden Sonderfahrtenliste und werden dort einem passenden LKW zugewiesen.
+- Charakteraufträge geben einen Standard-Shard, einen spezifischen Shard und eine regionale Kartenchance (35 %, 20 %, 12 %, 6 %, 2,5 % nach Region). Materialaufträge geben 15 M je Regionsstufe und gelegentlich Standard-Shards (20 %) oder ein Kapazitätsmodul (0,3 %). Charakteraufträge geben zusätzlich 5 M je Regionsstufe. Die Beute wird beim Abschluss gespeichert und nur einmal vergeben. Spätere Regionen bieten wertvollere Shards, aber seltenere Karten.
+- Als Testwerte dauern Ortsmissionen `2 + 8 × Regionsindex + 3 × Ortsindex` Stunden, Großaufträge `8 + 40 × Regionsindex` Stunden und ausgeloste Charakter- und Materialaufträge `1 + Regionsindex` Stunden. Ein aktiver Logistiker verkürzt diese Dauer beim Start. Region 1 ist binnen 1–2 Tagen erreichbar; Region 2 dauert ohne Level-Refills ungefähr 3–5 Tage. Diese Werte sind Balancingparameter.
+- Die fünf regionalen Standardcharaktere besitzen unterschiedliche Boni für Regeneration, maximale Kapazität, Shardchance, Expeditionsdauer und Charakter-Fundchance. Nur die fünf besetzten Sitze wirken. Die Stufen reichen von 1 bis 10; die Kosten pro Stufe steigen mit der Seltenheit des Charakters. Standard-Shards sind frei zwischen Standardcharakteren verwendbar, spezifische Shards nur für ihren Charakter. Fünf Standard-Shards lassen sich in einen der nächsten Stufe umwandeln. Shards werden einzeln zugewiesen und füllen direkt den Fortschritt zur nächsten Charakterstufe.
+
+Die regionalen Namen, Chancen und Dauern sind vorläufige Testwerte. Bereits vorhandene Spielstände behalten ihre Aufträge, LKW und Kundenbeziehungen; Kunden mit vorhandenen Aufträgen oder Vertrauen bleiben freigeschaltet.

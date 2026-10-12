@@ -42,6 +42,24 @@
   const BASE_OFFERS = 5;
   const INTERNATIONAL_OFFER_CHANCE = .20;
   const CUSTOMER_OFFER_CHANCE = .10;
+  const EXPEDITION_REGEN_MS = 20 * 60 * 1000;
+  const EXPEDITION_COST = 5;
+  const EXPEDITION_JOB_WEIGHTS = [
+    { kind: 'character', chance: .20 },
+    { kind: 'material', chance: .75 },
+    { kind: 'special', chance: .045 },
+    { kind: 'referral', chance: .005 }
+  ];
+  const EXPEDITION_REGIONS = ['Region 1', 'Region 2', 'Region 3', 'Region 4', 'Region 5'];
+  const EXPEDITION_CHARACTERS = [
+    { id: 'navigator', name: 'Navigatorin', rarity: 'common', region: 0, bonus: 'regen', base: 2, step: 1 },
+    { id: 'disponent', name: 'Disponent', rarity: 'uncommon', region: 1, bonus: 'capacity', base: 5, step: 2 },
+    { id: 'forscherin', name: 'Forscherin', rarity: 'rare', region: 2, bonus: 'shards', base: 5, step: 2 },
+    { id: 'logistiker', name: 'Logistiker', rarity: 'epic', region: 3, bonus: 'duration', base: 10, step: 2 },
+    { id: 'pionierin', name: 'Pionierin', rarity: 'legendary', region: 4, bonus: 'loot', base: 15, step: 3 }
+  ];
+  const EXPEDITION_SHARD_TIERS = ['uncommon', 'uncommon', 'common', 'common', 'common', 'rare', 'rare', 'rare', 'epic'];
+  const EXPEDITION_RARITY_COST = { common: 5, uncommon: 10, rare: 20, epic: 30, legendary: 40 };
   const SPECIAL_CHANCES = {
     national: { award: .20, module: .08, referral: .04, referralModule: .20 },
     international: { award: .40, module: .12, referral: .06, referralModule: .30 }
@@ -95,6 +113,7 @@
     { id: 'alpenhandel', name: 'Alpenhandel KG', initials: 'AH', industry: 'Handel', cargo: 'Werkzeuge', unlockLevel: 12, category: 'national' },
     { id: 'eurolog', name: 'EuroLog SE', initials: 'EL', industry: 'Technik', cargo: 'Maschinenteile', unlockLevel: 17, category: 'international' }
   ];
+  const EXPEDITION_CUSTOMER_IDS = ['nordbau', 'frischgut', 'stahlwerk', 'alpenhandel', 'eurolog'];
   const CARGO = [
     ['Baustoffe', '🧱'], ['Getreide', '🌾'], ['Maschinenteile', '⚙'], ['Holz', '▤'],
     ['Lebensmittel', '◈'], ['Stahlträger', '▰'], ['Papier', '▤'], ['Werkzeuge', '⚒']
@@ -147,7 +166,7 @@
     const { level = 1, starter = false } = options;
     const home = startCityById(options.startCity || game?.startCity) || startCityById('hamburg');
     const category = options.category || 'national';
-    const customers = CUSTOMERS.filter(c => c.category === category && category !== 'city');
+    const customers = CUSTOMERS.filter(c => c.category === category && category !== 'city' && customerUnlocked(c.id));
     const customer = options.customer === null ? null : options.customer || (!starter && customers.length > 0 && Math.random() < CUSTOMER_OFFER_CHANCE ? pick(customers).id : null);
     const [cargo, icon] = starter ? CARGO[0] : customer ? CARGO.find(([name]) => name === customerById(customer).cargo) : pick(CARGO);
     let from, to, distance, volume, destinationCountry = home.country;
@@ -178,15 +197,15 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 37, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 37, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
-      stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
+      stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
       for (const tier of [2, 2]) {
         const model = TRUCKS[tier];
         state.trucks.push({ id: `LKW-${String(state.nextTruck++).padStart(2, '0')}`, tier, model: model.model, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, purchasePrice: null, kmDriven: 0, toursCompleted: 0, ordersCompleted: 0 });
       }
-      for (let i = 0; i < BASE_OFFERS; i++) state.orders.push(createOrder(state.nextOrder++, { category: randomCategory(), startCity }));
+      for (let i = 0; i < BASE_OFFERS; i++) state.orders.push(createOrder(state.nextOrder++, { category: randomCategory(), startCity, customer: null }));
       state.events.unshift({ text: `Deine Spedition in ${startCityById(startCity).city} startet mit zwei 7,5-Tonnern.`, at: Date.now() });
     }
     return state;
@@ -195,18 +214,18 @@
   function loadGame() {
     try {
       const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (current?.version === 37 && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return refreshTruckModelNames(current);
+      if (current?.version === 37 && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return ensureExpedition(refreshTruckModelNames(current));
     } catch (_) { /* Beschädigte Spielstände behandelt die bestehende Migration. */ }
     const stored = loadLegacyGame();
-    if (stored.version === 36) return refreshTruckModelNames(upgradeVehicleSaleSave(stored));
-    if (stored.version !== 35) return refreshTruckModelNames(stored);
+    if (stored.version === 36) return ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)));
+    if (stored.version !== 35) return ensureExpedition(refreshTruckModelNames(stored));
     const old = stored.company?.offerLevels || {};
     stored.company ||= newCompany();
     stored.company.offerLevel = clamp((old.national || 0) + (old.international || 0), 0, MAX_OFFER_LEVEL);
     stored.version = 36;
     // Keep every legacy offer and assignment; normal replenishment fills missing slots later.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    return refreshTruckModelNames(upgradeVehicleSaleSave(stored));
+    return ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)));
   }
   function refreshTruckModelNames(stored) {
     let changed = false;
@@ -652,14 +671,192 @@
   let game;
   game = loadGame();
   let currentView = 'dashboard';
+  let selectedExpeditionRegion = null;
+  let selectedExpeditionNode = 0;
   let selectedTruckId = null;
   let pendingSaleTruckId = null;
   let pendingSaleQuote = null;
   let selectedSpecialCustomer = null;
+  let selectedExpeditionJobGroup = null;
   let selectedDepartmentId = null;
   let bulkRewardIds = [];
   let lastPaint = 0;
   let toastTimer;
+
+  function newExpedition() {
+    return { points: 50, lastRegenAt: Date.now(), regions: EXPEDITION_REGIONS.map(() => ({ discovered: 0, deliveries: Array(7).fill(false), endlessUnlocked: false })), jobs: [], missions: [], shards: Object.fromEntries(RARITIES.map(r => [r.id, 0])), specificShards: {}, characters: {}, seats: Array(5).fill(null), nextMission: 1 };
+  }
+  function ensureExpedition(stored) {
+    if (!stored.expedition) {
+      stored.expedition = newExpedition();
+      // Existing accepted contracts and earned trust remain available after migration.
+      for (const order of stored.orders) if (order.customer && order.status !== 'available') {
+        const index = EXPEDITION_CUSTOMER_IDS.indexOf(order.customer);
+        if (index >= 0) { stored.expedition.regions[index].discovered = 7; stored.expedition.regions[index].endlessUnlocked = true; }
+      }
+      for (const customer of CUSTOMERS) if ((stored.customerTrust?.[customer.id] || 0) > 0) {
+        const region = stored.expedition.regions[EXPEDITION_CUSTOMER_IDS.indexOf(customer.id)];
+        region.discovered = 7;
+        region.endlessUnlocked = true;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    stored.expedition.specificShards ||= {};
+    stored.expedition.jobs ||= [];
+    return stored;
+  }
+  function expeditionBonus(kind) {
+    return game.expedition.seats.reduce((sum, id) => {
+      const character = EXPEDITION_CHARACTERS.find(c => c.id === id);
+      const level = game.expedition.characters[id]?.level || 0;
+      return sum + (character?.bonus === kind && level ? character.base + (level - 1) * character.step : 0);
+    }, 0);
+  }
+  function expeditionCapacity() {
+    return 50 + game.expedition.regions.reduce((sum, region) => sum + region.deliveries.filter(Boolean).length, 0) + expeditionBonus('capacity');
+  }
+  function regenerateExpedition(now = Date.now()) {
+    const expedition = game.expedition;
+    if (expedition.points >= expeditionCapacity()) { expedition.lastRegenAt = now; return false; }
+    const interval = EXPEDITION_REGEN_MS / (1 + Math.min(20, expeditionBonus('regen')) / 100);
+    const earned = Math.floor(Math.max(0, now - expedition.lastRegenAt) / interval);
+    if (!earned) return false;
+    expedition.points = Math.min(expeditionCapacity(), expedition.points + earned);
+    expedition.lastRegenAt += earned * interval;
+    if (expedition.points >= expeditionCapacity()) expedition.lastRegenAt = now;
+    return true;
+  }
+  function spendExpeditionPoints(amount) {
+    regenerateExpedition();
+    if (game.expedition.points < amount) return false;
+    game.expedition.points -= amount;
+    game.expedition.lastRegenAt = Date.now();
+    return true;
+  }
+  function expeditionRegionOpen(index) { return index === 0 || game.expedition.regions[index - 1]?.endlessUnlocked; }
+  function expeditionDiscoveryCost(index, place) { return 3 + index * 9 + Math.floor(place / 2); }
+  function discoverExpeditionPlace(index) {
+    const region = game.expedition.regions[index];
+    if (!region || !expeditionRegionOpen(index) || region.discovered >= 7) return false;
+    const cost = expeditionDiscoveryCost(index, region.discovered);
+    if (!spendExpeditionPoints(cost)) return false;
+    region.discovered++;
+    addEvent(`${EXPEDITION_REGIONS[index]}: Ort ${region.discovered} entdeckt.`);
+    save(); render(); return true;
+  }
+  function expeditionTruckFree(id) { return freeTrucks().some(truck => truck.id === id && truck.tier >= 2); }
+  function expeditionDuration(index, kind, place = 0) {
+    const hours = kind === 'delivery' ? (2 + index * 8 + place * 3) : kind === 'final' ? (8 + index * 40) : (1 + index);
+    return hours * 3600000 * (1 - Math.min(40, expeditionBonus('duration')) / 100);
+  }
+  function drawExpeditionJob(index) {
+    const region = game.expedition.regions[index];
+    if (!region?.endlessUnlocked || !spendExpeditionPoints(EXPEDITION_COST)) return false;
+    const roll = Math.random();
+    let cumulative = 0;
+    const kind = EXPEDITION_JOB_WEIGHTS.find(item => (cumulative += item.chance) > roll)?.kind || 'material';
+    if (kind === 'special' || kind === 'referral') {
+      const customer = customerById(EXPEDITION_CUSTOMER_IDS[index]);
+      queueCustomerTrip({ category: customer.category, customer: customer.id, homeCity: game.startCity }, kind);
+    } else {
+      game.expedition.jobs.push({ id: game.expedition.nextMission++, region: index, kind, createdAt: Date.now() });
+    }
+    addEvent(`${EXPEDITION_REGIONS[index]}: ${expeditionJobLabel(kind)} ausgelost.`);
+    save(); render(); showToast(`${expeditionJobLabel(kind)} erhalten.`);
+    return kind;
+  }
+  function expeditionJobLabel(kind) {
+    return { character: 'Charakterauftrag', material: 'Materialauftrag', special: 'Sonderfahrt', referral: 'Empfehlungsauftrag' }[kind] || 'Expeditionsauftrag';
+  }
+  function expeditionJobTier(entry) { return [1, 2, 3].includes(entry.tier) ? entry.tier : null; }
+  function startExpeditionMission(index, kind, truckId, place = 0) {
+    const region = game.expedition.regions[index];
+    if (!region || !expeditionTruckFree(truckId) || !expeditionRegionOpen(index)) return false;
+    if (kind === 'delivery' && (place >= region.discovered || region.deliveries[place] || game.expedition.missions.some(m => m.status === 'active' && m.region === index && m.kind === 'delivery' && m.place === place))) return false;
+    if (kind === 'final' && (region.discovered < 7 || region.endlessUnlocked || game.expedition.missions.some(m => m.region === index && m.kind === 'final'))) return false;
+    const job = kind === 'endless' ? game.expedition.jobs.find(item => item.id === place && item.region === index) : null;
+    if (kind === 'endless' && (!region.endlessUnlocked || !job)) return false;
+    if (!['delivery', 'final', 'endless'].includes(kind)) return false;
+    const now = Date.now();
+    if (job) game.expedition.jobs.splice(game.expedition.jobs.indexOf(job), 1);
+    game.expedition.missions.push({ id: game.expedition.nextMission++, jobId: job?.id, tier: job?.tier, region: index, kind, lootKind: job?.kind || 'material', place, truckId, startedAt: now, endsAt: now + expeditionDuration(index, kind, place), status: 'active' });
+    addEvent(`${truckId} startet ${kind === 'endless' ? 'Endlosauftrag' : kind === 'final' ? 'Großauftrag' : 'Ortsmission'} in ${EXPEDITION_REGIONS[index]}.`);
+    save(); render(); return true;
+  }
+  function awardExpeditionLoot(mission) {
+    const expedition = game.expedition;
+    const region = mission.region;
+    const coins = (mission.lootKind === 'character' ? 5 : 15) * (region + 1);
+    game.coins = round2(game.coins + coins);
+    game.stats.expeditionRevenue = round2((game.stats.expeditionRevenue || 0) + coins);
+    const reward = [`${coins} M`];
+    // Each drawn job keeps its category through transport and settlement.
+    const tiers = ['uncommon', 'common', 'rare', 'epic'];
+    if (mission.lootKind === 'character' || Math.random() < .2) {
+      const tier = tiers[Math.min(3, Math.floor(region / 2) + (Math.random() < (region === 4 ? .4 : .12) ? 1 : 0))];
+      const amount = 1 + (Math.random() < .2 + expeditionBonus('shards') / 100 ? 1 : 0);
+      expedition.shards[tier] += amount;
+      reward.push(`${amount} ${tier}-Shard${amount === 1 ? '' : 's'}`);
+    }
+    const character = EXPEDITION_CHARACTERS[region];
+    const chance = (mission.lootKind === 'character' ? [.35, .20, .12, .06, .025][region] : 0) * (1 + expeditionBonus('loot') / 100);
+    if (Math.random() < chance) {
+      if (!expedition.characters[character.id]) { expedition.characters[character.id] = { level: 1, progress: 0 }; reward.push(character.name); }
+      else { expedition.specificShards[character.id] = (expedition.specificShards[character.id] || 0) + 1; reward.push(`1 ${character.name}-Shard`); }
+    }
+    if (mission.lootKind === 'character') { expedition.specificShards[character.id] = (expedition.specificShards[character.id] || 0) + 1; reward.push(`1 ${character.name}-Shard`); }
+    if (mission.lootKind === 'material' && Math.random() < .003) { game.inventory.capacityModules++; reward.push('1 Kapazitätsmodul'); }
+    mission.reward = reward.join(' · ');
+  }
+  function settleExpeditions(now = Date.now()) {
+    let changed = regenerateExpedition(now);
+    for (const mission of game.expedition.missions) {
+      if (mission.status !== 'active' || mission.endsAt > now) continue;
+      mission.status = 'completed';
+      const region = game.expedition.regions[mission.region];
+      if (mission.kind === 'delivery' && !region.deliveries[mission.place]) {
+        region.deliveries[mission.place] = true;
+        mission.reward = '+1 maximale Expeditionskapazität';
+      } else if (mission.kind === 'final' && !region.endlessUnlocked) {
+        region.endlessUnlocked = true;
+        game.inventory.capacityModules++;
+        mission.reward = `1 Kapazitätsmodul · ${customerById(EXPEDITION_CUSTOMER_IDS[mission.region]).name} freigeschaltet`;
+      } else if (mission.kind === 'endless') awardExpeditionLoot(mission);
+      addEvent(`${EXPEDITION_REGIONS[mission.region]}: ${mission.reward || 'Mission abgeschlossen'}.`);
+      changed = true;
+    }
+    if (game.expedition.missions.length > 120) game.expedition.missions = game.expedition.missions.filter(m => m.status === 'active').concat(game.expedition.missions.filter(m => m.status === 'completed').slice(-100));
+    if (changed) save();
+    return changed;
+  }
+  function assignCharacterSeat(id, seat) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= 5 || !game.expedition.characters[id]) return false;
+    const seats = game.expedition.seats;
+    const previous = seats.indexOf(id);
+    if (previous >= 0) seats[previous] = null;
+    seats[seat] = id;
+    save(); render(); return true;
+  }
+  function giveCharacterShard(id, specific = false) {
+    const character = EXPEDITION_CHARACTERS.find(c => c.id === id);
+    const card = game.expedition.characters[id];
+    if (!character || !card || card.level >= 10) return false;
+    const tier = EXPEDITION_SHARD_TIERS[card.level - 1];
+    if (specific ? !game.expedition.specificShards[id] : !game.expedition.shards[tier]) return false;
+    if (specific) game.expedition.specificShards[id]--; else game.expedition.shards[tier]--;
+    card.progress++;
+    const needed = card.level * EXPEDITION_RARITY_COST[character.rarity];
+    if (card.progress >= needed) { card.level++; card.progress = 0; addEvent(`${character.name} erreicht Stufe ${card.level}.`); }
+    save(); render(); return true;
+  }
+  function combineExpeditionShards(tier) {
+    const tiers = ['uncommon', 'common', 'rare', 'epic'];
+    const index = tiers.indexOf(tier);
+    if (index < 0 || index >= tiers.length - 1 || game.expedition.shards[tier] < 5) return false;
+    game.expedition.shards[tier] -= 5;
+    game.expedition.shards[tiers[index + 1]]++;
+    save(); render(); return true;
+  }
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); }
@@ -692,7 +889,7 @@
   }
   function allocateCustomerSkill(customerId, kind) {
     const customer = customerById(customerId);
-    if (!customer || !Object.hasOwn(CUSTOMER_SKILL_LIMITS, kind) || availableCustomerSkillPoints(customerId) < 1) return false;
+    if (!customer || !customerUnlocked(customerId) || !Object.hasOwn(CUSTOMER_SKILL_LIMITS, kind) || availableCustomerSkillPoints(customerId) < 1) return false;
     const skills = game.customerSkills[customerId] ||= { pay: 0, special: 0, referral: 0 };
     if (skills[kind] >= CUSTOMER_SKILL_LIMITS[kind]) return false;
     skills[kind]++;
@@ -939,8 +1136,12 @@
     addEvent(`Disposition: Stufe ${currentLevel + 1} · ${offerLimit()} verfügbare Aufträge.`);
     save(); render(); showToast(`Jetzt ${offerLimit()} verfügbare Aufträge.`);
   }
-  function freeTrucks() { return game.trucks.filter(t => !t.hubAssigned && !game.orders.some(o => o.status === 'active' && o.truckId === t.id)); }
+  function freeTrucks() { return game.trucks.filter(t => !t.hubAssigned && !game.orders.some(o => o.status === 'active' && o.truckId === t.id) && !game.expedition.missions.some(m => m.status === 'active' && m.truckId === t.id)); }
   function customerById(id) { return CUSTOMERS.find(c => c.id === id); }
+  function customerUnlocked(id, state = game) {
+    const regionIndex = EXPEDITION_CUSTOMER_IDS.indexOf(id);
+    return regionIndex >= 0 && Boolean(state?.expedition?.regions[regionIndex]?.endlessUnlocked);
+  }
   function categoryById(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
   function canTruckTakeOrder(truck, order) { return !truck.hubAssigned && categoryById(order.category).tiers.includes(truck.tier); }
   function eligibleFreeTrucks(order) { return freeTrucks().filter(t => canTruckTakeOrder(t, order)); }
@@ -1018,7 +1219,7 @@
   }
   function saleBlockReason(truck) {
     if (!truck) return 'Fahrzeug nicht gefunden.';
-    if (game.orders.some(order => order.status === 'active' && order.truckId === truck.id)) return 'Ein laufender Auftrag muss zuerst abgeschlossen werden.';
+    if (game.orders.some(order => order.status === 'active' && order.truckId === truck.id) || game.expedition.missions.some(m => m.status === 'active' && m.truckId === truck.id)) return 'Ein laufender Auftrag muss zuerst abgeschlossen werden.';
     if (truck.tier >= 2 && regularTruckCount() <= 1) return 'Mindestens ein regulärer Auftrags-LKW muss bleiben.';
     return null;
   }
@@ -1174,7 +1375,9 @@
         order.tripCargo = Math.min(truck.capacity, order.volume - order.delivered);
         changed = true;
         if (levelForXp(game.xp).level > beforeLevel) {
-          addEvent(`Level ${levelForXp(game.xp).level} erreicht!`);
+          const levels = levelForXp(game.xp).level - beforeLevel;
+          game.expedition.points += 50 * levels;
+          addEvent(`Level ${levelForXp(game.xp).level} erreicht! +${50 * levels} Expeditionspunkte.`);
         }
         if (order.delivered >= order.volume) {
           order.status = 'completed'; order.completedAt = order.tripStartAt; order.tripStartAt = null; order.tripCargo = null;
@@ -1260,7 +1463,7 @@
 
   function replenishOrders() {
     if (!game.startCity) return;
-    game.orders = game.orders.filter(order => order.status !== 'available' || order.category !== 'city');
+    game.orders = game.orders.filter(order => order.status !== 'available' || (order.category !== 'city' && (!order.customer || customerUnlocked(order.customer))));
     const available = () => game.orders.filter(o => o.status === 'available' && o.category !== 'city');
     while (available().length > offerLimit()) {
       const excess = available();
@@ -1330,7 +1533,7 @@
     save(); render(); showToast(`${truck.id}: ${next.label} ${next.level} ★ erreicht.`);
   }
   function assignOrder(orderId, truckId) {
-    const order = game.orders.find(o => o.id === orderId && o.status === 'available');
+    const order = game.orders.find(o => o.id === orderId && o.status === 'available' && (!o.customer || customerUnlocked(o.customer)));
     const truck = eligibleFreeTrucks(order || { category: 'city' }).find(t => t.id === truckId);
     if (!order || !truck) return;
     order.status = 'active'; order.pinned = false; order.truckId = truckId; order.tripStartAt = Date.now(); order.tripCargo = Math.min(truck.capacity, order.volume - order.delivered);
@@ -1382,7 +1585,10 @@
     const level = levelForXp(game.xp);
     $('#topbar-coins').textContent = `${money(game.coins)} M`;
     $('#topbar-level').textContent = level.level;
-    $('#stat-active').textContent = game.orders.filter(o => o.status === 'active').length;
+    const expeditionPoints = $('#topbar-expedition-points');
+    expeditionPoints.textContent = `${integer(game.expedition.points)} / ${integer(expeditionCapacity())}`;
+    expeditionPoints.setAttribute('aria-label', `${integer(game.expedition.points)} von ${integer(expeditionCapacity())} Expeditionspunkten`);
+    $('#stat-active').textContent = game.orders.filter(o => o.status === 'active').length + game.expedition.missions.filter(m => m.status === 'active').length;
     $('#stat-fleet').textContent = `${game.trucks.length} ${game.trucks.length === 1 ? 'Fahrzeug' : 'Fahrzeuge'} in den Garagen`;
     $('#nav-order-count').textContent = game.orders.filter(o => o.status === 'available').length;
   }
@@ -1406,7 +1612,7 @@
     $('#hub-dashboard-collect').disabled = !h || !h.cashboxCoins && !h.cashboxHints;
     $('#hub-dashboard-open').hidden = !!h;
     const busyTruckIds = new Set(game.orders.filter(order => order.status === 'active').map(order => order.truckId));
-    const idleTrucks = game.trucks.filter(truck => !busyTruckIds.has(truck.id) && !truck.hubAssigned);
+    const idleTrucks = game.trucks.filter(truck => !busyTruckIds.has(truck.id) && !truck.hubAssigned && !game.expedition.missions.some(m => m.status === 'active' && m.truckId === truck.id));
     const idleList = $('#idle-trucks-list');
     const idleSignature = idleTrucks.map(truck => `${truck.id}:${truck.tier}`).join(',');
     if (idleList.dataset.signature !== idleSignature) {
@@ -1471,7 +1677,7 @@
     const el = $('#special-content');
     if (!selectedSpecialCustomer) {
       const referrals = game.orders.filter(o => o.kind === 'referral' && o.status === 'queued').length;
-      el.innerHTML = `<div class="special-customer-grid"><button type="button" class="special-customer-card rarity-epic" data-special-customer="referrals"><span class="special-initials">★</span><span><strong>Empfehlungsaufträge</strong><small>${referrals} Empfehlungsfahrten offen</small></span><span>›</span></button>${CUSTOMERS.map(customer => {
+      el.innerHTML = `<div class="special-customer-grid"><button type="button" class="special-customer-card rarity-epic" data-special-customer="referrals"><span class="special-initials">★</span><span><strong>Empfehlungsaufträge</strong><small>${referrals} Empfehlungsfahrten offen</small></span><span>›</span></button>${CUSTOMERS.filter(customer => customerUnlocked(customer.id) || game.orders.some(o => o.customer === customer.id && o.kind === 'special')).map(customer => {
         const queued = game.orders.filter(o => o.customer === customer.id && o.status === 'queued');
         const special = queued.filter(o => o.kind === 'special').length;
         return `<button type="button" class="special-customer-card rarity-rare" data-special-customer="${customer.id}"><span class="special-initials">${customer.initials}</span><span><strong>${customer.name}</strong><small>${special} Sonderfahrten offen</small></span><span>›</span></button>`;
@@ -1488,6 +1694,36 @@
     const row = o => `<article class="special-trip-row rarity-${o.kind === 'referral' ? 'epic' : 'rare'}"><div><strong>${o.kind === 'special' ? 'Sonderfahrt' : 'Empfehlungsfahrt'} ${o.id}</strong><small>${categoryById(o.category).label} · ${o.from} → ${o.to} · ${tons(o.volume)} t · ${o.distance} km · ${routeTypeLabel(o)}</small></div><div>${o.status === 'active' ? `<strong>${tons(o.delivered)} / ${tons(o.volume)} t</strong><small>LKW ${o.truckId} · ${Math.round(progress(o))} %</small><div class="mini-progress"><span style="width:${progress(o)}%"></span></div>` : o.status === 'completed' ? `<strong>Abgeschlossen</strong><small>${o.completionReward?.claimedAt ? `Prämie abgeholt${o.completionReward.capacityModule ? ' · Modul erhalten' : ''}` : 'Prämie bereit'}</small>${!o.completionReward?.claimedAt ? `<button class="button button-outline" data-claim-order="${o.id}">Beute abholen</button>` : ''}` : '<span class="pill pill-gray">BEREIT</span>'}</div></article>`;
     el.innerHTML = `<button class="text-button special-back" data-special-back>← Übersicht</button><div class="page-heading"><h2>${isReferralPage ? 'Empfehlungsaufträge' : customer.name}</h2></div><div class="special-actions"><button class="button button-primary" data-start-trip="${isReferralPage ? 'referral' : 'special'}" ${queued.length ? '' : 'disabled'}>${isReferralPage ? 'Empfehlungsfahrt' : 'Sonderfahrt'} durchführen · ${queued.length} offen</button></div><h3>Laufende Fahrten</h3>${active.length ? active.map(row).join('') : '<p>Keine laufenden Fahrten.</p>'}<h3>Verfügbare Fahrten</h3>${queued.length ? queued.map(row).join('') : '<p>Keine Fahrten offen.</p>'}<h3>Abgeschlossene Fahrten</h3>${completed.length ? completed.map(row).join('') : '<p>Noch keine Fahrt abgeschlossen.</p>'}`;
   }
+  function renderExpeditionJobs() {
+    const el = $('#expedition-jobs-content');
+    const types = [
+      { kind: 'character', label: 'Charakteraufträge', icon: '♙' },
+      { kind: 'material', label: 'Materialaufträge', icon: '▣' }
+    ];
+    const pending = game.expedition.jobs;
+    const missions = game.expedition.missions.filter(m => m.kind === 'endless');
+    if (!selectedExpeditionJobGroup) {
+      el.innerHTML = `<div class="expedition-jobs-head"><span>AUFTRAGSART</span>${[1, 2, 3].map(tier => `<strong>STUFE ${tier}</strong>`).join('')}</div>${types.map(type => `<section class="expedition-jobs-row"><h2>${type.label}</h2><div class="expedition-jobs-cards">${[1, 2, 3].map(tier => {
+        const ready = pending.filter(job => job.kind === type.kind && expeditionJobTier(job) === tier).length;
+        const active = missions.filter(m => m.lootKind === type.kind && m.status === 'active' && expeditionJobTier(m) === tier).length;
+        return `<button type="button" class="special-customer-card expedition-job-card" data-expedition-job-group="${type.kind}:${tier}"><span class="special-initials">${type.icon}</span><span><strong>${type.label} · Stufe ${tier}</strong><small>${ready} bereit · ${active} unterwegs</small></span><span>›</span></button>`;
+      }).join('')}</div></section>`).join('')}<section class="expedition-jobs-unassigned"><h2>Aufträge ohne Stufe</h2><p>Die Stufe dieser Aufträge ist noch nicht festgelegt. Sie können bereits gefahren werden.</p><div class="expedition-jobs-cards">${types.map(type => {
+        const ready = pending.filter(job => job.kind === type.kind && expeditionJobTier(job) === null).length;
+        const active = missions.filter(m => m.lootKind === type.kind && m.status === 'active' && expeditionJobTier(m) === null).length;
+        return `<button type="button" class="special-customer-card expedition-job-card" data-expedition-job-group="${type.kind}:open"><span class="special-initials">${type.icon}</span><span><strong>${type.label}</strong><small>${ready} bereit · ${active} unterwegs</small></span><span>›</span></button>`;
+      }).join('')}</div></section>`;
+      return;
+    }
+    const [kind, tierText] = selectedExpeditionJobGroup.split(':');
+    const tier = tierText === 'open' ? null : Number(tierText);
+    const type = types.find(item => item.kind === kind);
+    if (!type || (tier !== null && ![1, 2, 3].includes(tier))) { selectedExpeditionJobGroup = null; renderExpeditionJobs(); return; }
+    const ready = pending.filter(job => job.kind === kind && expeditionJobTier(job) === tier).sort((a, b) => a.createdAt - b.createdAt);
+    const active = missions.filter(m => m.lootKind === kind && m.status === 'active' && expeditionJobTier(m) === tier);
+    const completed = missions.filter(m => m.lootKind === kind && m.status === 'completed' && expeditionJobTier(m) === tier).slice(-20).reverse();
+    const row = (title, meta, end) => `<article class="special-trip-row expedition-job-row"><div><strong>${title}</strong><small>${meta}</small></div><div>${end}</div></article>`;
+    el.innerHTML = `<button type="button" class="text-button special-back" data-expedition-job-back>← Übersicht</button><div class="page-heading"><div><div class="eyebrow">${tier === null ? 'OHNE STUFE' : `STUFE ${tier}`}</div><h2>${type.label}</h2></div><span class="pill pill-gray">${ready.length} bereit</span></div><h3>Verfügbare Aufträge</h3>${ready.length ? ready.map(job => row(`${expeditionJobLabel(kind)} #${job.id}`, `${EXPEDITION_REGIONS[job.region]} · ${Math.round(expeditionDuration(job.region, 'endless') / 3600000)} Stunden Fahrzeit`, `<button type="button" class="button button-primary" data-open-expedition-job="${job.region}:${job.id}">Auftrag durchführen</button>`)).join('') : '<p>Keine Aufträge offen.</p>'}<h3>Laufende Aufträge</h3>${active.length ? active.map(m => row(`${expeditionJobLabel(kind)} #${m.jobId || m.id}`, `${EXPEDITION_REGIONS[m.region]} · LKW ${m.truckId}`, `<strong>${countdown((m.endsAt - Date.now()) / 1000)}</strong><small>verbleibend</small>`)).join('') : '<p>Keine laufenden Aufträge.</p>'}<h3>Abgeschlossene Aufträge</h3>${completed.length ? completed.map(m => row(`${expeditionJobLabel(kind)} #${m.jobId || m.id}`, EXPEDITION_REGIONS[m.region], `<strong>Abgeschlossen</strong><small>${m.reward || 'Belohnung erhalten'}</small>`)).join('') : '<p>Noch keine Aufträge abgeschlossen.</p>'}`;
+  }
   function renderOrders() {
     const secondsLeft = Math.max(0, Math.ceil((game.nextAutoRefreshAt - Date.now()) / 1000));
     $('#order-refresh-countdown').textContent = `${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`;
@@ -1496,7 +1732,7 @@
     refreshButton.disabled = game.coins < refreshCost;
     refreshButton.textContent = `↻ Neue Angebote · ${money(refreshCost)} M`;
     refreshButton.title = game.coins < refreshCost ? `${money(refreshCost)} Münzen erforderlich` : 'Alle verfügbaren Angebote erneuern';
-    const orders = game.orders.filter(o => o.status === 'available' && o.category !== 'city').sort((a, b) => a.createdAt - b.createdAt);
+    const orders = game.orders.filter(o => o.status === 'available' && o.category !== 'city' && (!o.customer || customerUnlocked(o.customer))).sort((a, b) => a.createdAt - b.createdAt);
     $('#orders-list').innerHTML = orders.length ? orders.map(o => {
       const freight = freightRevenue(o);
       const eligible = eligibleFreeTrucks(o);
@@ -1512,7 +1748,8 @@
   function fleetTable(trucks, title) {
     const rows = trucks.map(t => {
       const order = game.orders.find(o => o.status === 'active' && o.truckId === t.id);
-      return `<tr data-fleet-truck="${t.id}" tabindex="0" aria-label="Details zu ${t.model} ${t.id} öffnen"><td><span class="fleet-vehicle"><span class="fleet-vehicle-icon">${t.symbol}</span><span><strong>${t.model}</strong><small>${t.id}</small></span></span></td><td>${rarityBadge(t)}</td><td><span class="pill ${order || t.hubAssigned ? 'pill-green' : 'pill-gray'}">${order ? 'UNTERWEGS' : t.hubAssigned ? 'IM HUB' : 'FREI'}</span></td><td>${tons(t.capacity)} t</td><td>${speedLabel(truckSpeed(t))} / ${speedLabel(truckSpeed(t, t.capacity))}</td><td>${rateMoney(operatingCostPerKm(t))} M/km</td><td>${order ? `<span class="fleet-order">${order.id} · ${tons(order.delivered)}/${tons(order.volume)} t<small>Restzeit ${countdown(remainingOrderSeconds(order, t))}</small></span>` : t.hubAssigned ? 'Stadthub' : '–'}</td><td class="fleet-table-arrow">›</td></tr>`;
+      const expedition = game.expedition.missions.find(m => m.status === 'active' && m.truckId === t.id);
+      return `<tr data-fleet-truck="${t.id}" tabindex="0" aria-label="Details zu ${t.model} ${t.id} öffnen"><td><span class="fleet-vehicle"><span class="fleet-vehicle-icon">${t.symbol}</span><span><strong>${t.model}</strong><small>${t.id}</small></span></span></td><td>${rarityBadge(t)}</td><td><span class="pill ${order || expedition || t.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expedition ? 'UNTERWEGS' : t.hubAssigned ? 'IM HUB' : 'FREI'}</span></td><td>${tons(t.capacity)} t</td><td>${speedLabel(truckSpeed(t))} / ${speedLabel(truckSpeed(t, t.capacity))}</td><td>${rateMoney(operatingCostPerKm(t))} M/km</td><td>${order ? `<span class="fleet-order">${order.id} · ${tons(order.delivered)}/${tons(order.volume)} t<small>Restzeit ${countdown(remainingOrderSeconds(order, t))}</small></span>` : expedition ? `Expedition · ${EXPEDITION_REGIONS[expedition.region]}<small>Restzeit ${countdown((expedition.endsAt - Date.now()) / 1000)}</small>` : t.hubAssigned ? 'Stadthub' : '–'}</td><td class="fleet-table-arrow">›</td></tr>`;
     }).join('') || '<tr><td class="fleet-table-empty" colspan="8">Noch keine Fahrzeuge in dieser Gruppe.</td></tr>';
     return `<section class="fleet-section"><div class="fleet-section-heading"><h2>${title}</h2><span>${trucks.length} LKW</span></div><div class="fleet-table-wrap"><table class="fleet-table"><caption class="sr-only">${title}</caption><thead><tr><th>Fahrzeug</th><th>Stufe</th><th>Status</th><th>Kapazität</th><th>Tempo leer / beladen</th><th>Betriebskosten</th><th>Auftrag</th><th><span class="sr-only">Details</span></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
@@ -1536,9 +1773,10 @@
     const truck = game.trucks.find(t => t.id === selectedTruckId);
     if (!truck) { if ($('#truck-dialog').open) $('#truck-dialog').close(); return; }
     const order = game.orders.find(o => o.status === 'active' && o.truckId === truck.id);
+    const expeditionMission = game.expedition.missions.find(m => m.status === 'active' && m.truckId === truck.id);
     const currentCargo = order ? (order.tripCargo ?? Math.min(truck.capacity, order.volume - order.delivered)) : 0;
     $('#truck-dialog-title').textContent = `${truck.symbol} ${truck.model} · ${truck.id}`;
-    $('#truck-dialog-content').innerHTML = `<div class="truck-dialog-status"><span class="pill ${order || truck.hubAssigned ? 'pill-green' : 'pill-gray'}">${order ? 'UNTERWEGS' : truck.hubAssigned ? 'IM HUB' : 'FREI'}</span> <span class="pill pill-gray">${startCityById(game.startCity).city}</span></div><div class="truck-dialog-facts"><div><span>Kapazität</span><strong>${tons(truck.capacity)} t pro Tour</strong></div><div><span>Tempo leer</span><strong>${speedLabel(truckSpeed(truck))}</strong></div><div><span>Tempo voll beladen</span><strong>${speedLabel(truckSpeed(truck, truck.capacity))}</strong></div><div><span>Fahrzeugpreis</span><strong>${rateMoney(operatingCostPerKm(truck))} M/km</strong></div></div>${order ? `<div class="truck-dialog-order"><div class="upgrade-title"><span>Aktueller Auftrag ${order.id}</span><span>${tons(order.delivered)} / ${tons(order.volume)} t</span></div><div class="truck-dialog-route">${order.cargo} · ${order.from} → ${order.to}</div><div class="truck-dialog-route">Aktuelle Ladung: ${tons(currentCargo)} t · ${speedLabel(truckSpeed(truck, currentCargo))} beladen · Restzeit Auftrag ${countdown(remainingOrderSeconds(order, truck))}</div><div class="mini-progress"><span style="width:${progress(order)}%"></span></div></div>` : truck.tier <= 1 ? `<button type="button" class="button button-outline truck-dialog-orders" data-go="hub">Zum Stadthub</button>` : `<button type="button" class="button button-outline truck-dialog-orders" data-truck-orders>Auftrag suchen</button>`}`;
+    $('#truck-dialog-content').innerHTML = `<div class="truck-dialog-status"><span class="pill ${order || expeditionMission || truck.hubAssigned ? 'pill-green' : 'pill-gray'}">${order || expeditionMission ? 'UNTERWEGS' : truck.hubAssigned ? 'IM HUB' : 'FREI'}</span> <span class="pill pill-gray">${startCityById(game.startCity).city}</span></div><div class="truck-dialog-facts"><div><span>Kapazität</span><strong>${tons(truck.capacity)} t pro Tour</strong></div><div><span>Tempo leer</span><strong>${speedLabel(truckSpeed(truck))}</strong></div><div><span>Tempo voll beladen</span><strong>${speedLabel(truckSpeed(truck, truck.capacity))}</strong></div><div><span>Fahrzeugpreis</span><strong>${rateMoney(operatingCostPerKm(truck))} M/km</strong></div></div>${order ? `<div class="truck-dialog-order"><div class="upgrade-title"><span>Aktueller Auftrag ${order.id}</span><span>${tons(order.delivered)} / ${tons(order.volume)} t</span></div><div class="truck-dialog-route">${order.cargo} · ${order.from} → ${order.to}</div><div class="truck-dialog-route">Aktuelle Ladung: ${tons(currentCargo)} t · ${speedLabel(truckSpeed(truck, currentCargo))} beladen · Restzeit Auftrag ${countdown(remainingOrderSeconds(order, truck))}</div><div class="mini-progress"><span style="width:${progress(order)}%"></span></div></div>` : expeditionMission ? `<div class="truck-dialog-order">Expedition in ${EXPEDITION_REGIONS[expeditionMission.region]} · Restzeit ${countdown((expeditionMission.endsAt - Date.now()) / 1000)}</div>` : truck.tier <= 1 ? `<button type="button" class="button button-outline truck-dialog-orders" data-go="hub">Zum Stadthub</button>` : `<button type="button" class="button button-outline truck-dialog-orders" data-truck-orders>Auftrag suchen</button>`}`;
     const rarity = truckRarity(truck);
     const gearCount = game.inventory.gears[rarity.id];
     const gearCost = rankGearCost(truck);
@@ -1584,6 +1822,7 @@
       ['Testmünzen', `+${money(stats.testCoinsGranted || 0)} M`],
       ...(stats.removedUpgradeRefund ? [['Erstattete LKW-Ausbauten', `+${money(stats.removedUpgradeRefund)} M`]] : []),
       ['Transportertrag', `+${money(stats.grossRevenue)} M`],
+      ['Expeditionsertrag', `+${money(stats.expeditionRevenue || 0)} M`],
       ['Auftragsprämien', `+${money(stats.contractBonusRevenue)} M`],
       ['Stadthub', `+${money(stats.hubRevenue || 0)} M`],
       ['Betriebskosten', `−${money(stats.operatingCosts)} M`],
@@ -1602,6 +1841,8 @@
   }
   function renderCustomers() {
     $('#customer-list').innerHTML = CUSTOMERS.map(c => {
+      const regionIndex = EXPEDITION_CUSTOMER_IDS.indexOf(c.id);
+      if (!customerUnlocked(c.id)) return `<article class="customer-card customer-card-locked" aria-label="${c.name}, gesperrt"><div class="customer-avatar">${c.initials}</div><h3>${c.name}</h3><p>${c.industry} · ${categoryById(c.category).label}</p><span class="locked-message">GESPERRT</span><div class="locked-detail">Nach dem Großauftrag in ${EXPEDITION_REGIONS[regionIndex]} verfügbar. Bis dahin erscheinen keine Aufträge dieses Kunden.</div></article>`;
       const trust = game.customerTrust[c.id] || 0, level = customerLevel(trust), next = customerNext(trust);
       const start = trustTotalForLevel(level);
       const pct = next ? (trust - start) / (next - start) * 100 : 100;
@@ -1616,6 +1857,64 @@
       ].map(skill => `<div class="customer-skill-row"><span>${skill.label}<small>${skill.value}</small></span><button class="customer-skill-button" data-customer-skill="${skill.kind}" data-customer="${c.id}" aria-label="${skill.label} für ${c.name} erhöhen" title="1 Fähigkeitspunkt ausgeben" ${available && skills[skill.kind] < CUSTOMER_SKILL_LIMITS[skill.kind] ? '' : 'disabled'}>+</button></div>`).join('');
       const chanceText = base ? `<p>Aktuell: Sonderfahrt ${money((base.award + skills.special * .001) * 100)} % · Empfehlung ${money((base.referral + skills.referral * .001) * 100)} %</p>` : '';
       return `<article class="customer-card"><div class="customer-avatar">${c.initials}</div><h3>${c.name}</h3><p>${c.industry} · ${categoryById(c.category).label}</p><div class="customer-level"><span>Vertrauenslevel <strong>${level} / ${MAX_TRUST_LEVEL}</strong></span><span>${integer(trust)}${next ? ` / ${integer(next)}` : ''} Vertrauen</span></div><div class="mini-progress"><span style="width:${pct}%"></span></div><div class="customer-skills"><div class="customer-skill-heading"><span>FÄHIGKEITSPUNKTE</span><strong>${integer(spent)} verbraucht · ${integer(available)} frei</strong></div><p>1 Punkt je Aufstieg ab Level 0</p>${skillRows}${chanceText}</div></article>`;
+    }).join('');
+  }
+  function renderExpeditions() {
+    const expedition = game.expedition;
+    const capacity = expeditionCapacity();
+    const free = freeTrucks().filter(truck => truck.tier >= 2);
+    const truckChoices = (region, kind, place) => free.length ? `<div class="expedition-truck-choices">${free.map(t => `<button class="button button-outline" data-expedition-start="${region}:${kind}:${place}:${t.id}">${t.symbol} ${t.id} einsetzen</button>`).join('')}</div>` : '<p>Ein freier regulärer LKW wird benötigt.</p>';
+    $('#expedition-status').innerHTML = `<strong>${integer(expedition.points)} / ${integer(capacity)} Punkte</strong><span>${expedition.points >= capacity ? 'Regeneration pausiert' : '1 Punkt je 20 Minuten · Über dem Limit pausiert die Regeneration'} · 5 Punkte je Auslosung · +50 je Spielerlevel</span>`;
+    if (selectedExpeditionRegion === null) {
+      $('#expedition-regions').innerHTML = `<div class="expedition-region-list">${expedition.regions.map((region, index) => {
+        const open = expeditionRegionOpen(index);
+        const completed = region.deliveries.filter(Boolean).length;
+        return `<button type="button" class="expedition-region-card ${open ? '' : 'is-locked'}" data-expedition-region="${index}" ${open ? '' : 'disabled'}><span class="expedition-region-number">${String(index + 1).padStart(2, '0')}</span><span class="expedition-region-copy"><strong>${EXPEDITION_REGIONS[index]}</strong><small>Stammkunde: ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} · ${open ? `${region.discovered} / 7 Orte entdeckt · ${completed} / 7 Kapazitätsmissionen` : 'Nach dem Großauftrag der vorherigen Region verfügbar'}</small></span><span class="pill ${region.endlessUnlocked ? 'pill-green' : 'pill-gray'}">${region.endlessUnlocked ? 'ENDLOSORT OFFEN' : open ? 'IN ERFORSCHUNG' : 'GESPERRT'}</span><span class="expedition-region-arrow">${open ? '›' : '⌁'}</span></button>`;
+      }).join('')}</div>`;
+    } else {
+      const index = selectedExpeditionRegion;
+      const region = expedition.regions[index];
+      if (!region || !expeditionRegionOpen(index)) { selectedExpeditionRegion = null; renderExpeditions(); return; }
+      const active = expedition.missions.filter(m => m.region === index && m.status === 'active');
+      const nodes = Array.from({ length: 7 }, (_, place) => {
+        const discovered = place < region.discovered;
+        const complete = region.deliveries[place];
+        const state = complete ? 'complete' : discovered ? 'discovered' : place === region.discovered ? 'next' : 'locked';
+        return `<button type="button" class="expedition-map-node ${state} ${selectedExpeditionNode === place ? 'selected' : ''}" data-expedition-node="${place}" aria-pressed="${selectedExpeditionNode === place}"><span>${place + 1}</span><small>Ort ${place + 1}</small></button>`;
+      }).join('');
+      const endlessState = region.endlessUnlocked ? 'complete' : region.discovered === 7 ? 'next' : 'locked';
+      const selected = selectedExpeditionNode;
+      let detail;
+      if (selected < 7) {
+        const discovered = selected < region.discovered;
+        const done = region.deliveries[selected];
+        const running = active.find(m => m.kind === 'delivery' && m.place === selected);
+        detail = `<h3>Ort ${selected + 1}</h3>${!discovered ? selected === region.discovered ? `<p>Entdecke diesen Ort für ${expeditionDiscoveryCost(index, selected)} Expeditionspunkte.</p><button class="button button-primary" data-expedition-discover="${index}" ${expedition.points < expeditionDiscoveryCost(index, selected) ? 'disabled' : ''}>Ort entdecken · ${expeditionDiscoveryCost(index, selected)} Punkte</button>` : '<p>Entdecke zuerst die vorherigen Orte.</p>' : done ? '<p>Ortsmission abgeschlossen. Die maximale Expeditionskapazität wurde dauerhaft um 1 erhöht.</p>' : running ? `<p>${running.truckId} ist unterwegs · ${countdown((running.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Optionale LKW-Mission · ${Math.round(expeditionDuration(index, 'delivery', selected) / 3600000)} Stunden · einmalig +1 maximale Expeditionskapazität.</p>${truckChoices(index, 'delivery', selected)}`}`;
+      } else {
+        const finalRunning = active.find(m => m.kind === 'final');
+        const jobs = expedition.jobs.filter(job => job.region === index);
+        const running = active.filter(m => m.kind === 'endless');
+        detail = `<h3>Endlosort</h3>${region.discovered < 7 ? '<p>Entdecke zuerst alle sieben Orte. Ihre optionalen LKW-Missionen dürfen später erledigt werden.</p>' : !region.endlessUnlocked ? finalRunning ? `<p>Großauftrag mit ${finalRunning.truckId} läuft · ${countdown((finalRunning.endsAt - Date.now()) / 1000)} verbleibend.</p>` : `<p>Großauftrag · ${Math.round(expeditionDuration(index, 'final') / 3600000)} Stunden. Abschluss: 1 Kapazitätsmodul, ${customerById(EXPEDITION_CUSTOMER_IDS[index]).name} und nächste Region.</p>${truckChoices(index, 'final', 0)}` : `<p>Für 5 Punkte wird ein Auftrag ausgelost: Charakter 20 %, Material 75 %, Sonderfahrt 4,5 %, Empfehlung 0,5 %.</p><button class="button button-primary" data-expedition-draw="${index}" ${expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Auftrag auslosen · 5 Punkte</button><div class="expedition-job-summary"><strong>${jobs.length} bereit · ${running.length} unterwegs</strong><button type="button" class="button button-outline" data-go="expedition-jobs">Zu Expeditionsaufträgen</button></div>`}`;
+      }
+      $('#expedition-regions').innerHTML = `<button class="button button-outline expedition-back" data-expedition-back>← Alle Regionen</button><section class="panel expedition-map-card"><div class="section-head"><div><div class="eyebrow">REGION ${index + 1}</div><h2>${EXPEDITION_REGIONS[index]}</h2></div><span class="pill ${region.endlessUnlocked ? 'pill-green' : 'pill-gray'}">${region.discovered}/7 Orte entdeckt</span></div><div class="expedition-map-layout"><div class="expedition-map-column"><div class="expedition-map">${nodes}<button type="button" class="expedition-map-node endless ${endlessState} ${selected === 7 ? 'selected' : ''}" data-expedition-node="7" aria-pressed="${selected === 7}"><span>∞</span><small>Endlosort</small></button></div><div class="expedition-map-legend"><span>● Entdecken</span><span>● Entdeckt</span><span>● Mission abgeschlossen</span></div></div><section class="expedition-node-detail">${detail}</section></div></section>`;
+    }
+    const recent = expedition.missions.filter(m => m.status === 'completed').slice(-8).reverse();
+    $('#expedition-history').innerHTML = recent.length ? recent.map(m => `<div class="expedition-history-row"><strong>${EXPEDITION_REGIONS[m.region]} · ${m.kind === 'endless' ? 'Endlosauftrag' : m.kind === 'final' ? 'Großauftrag' : `Ort ${m.place + 1}`}</strong><span>${m.reward || 'Abgeschlossen'}</span></div>`).join('') : '<p>Noch keine Expedition abgeschlossen.</p>';
+    $('#expedition-history-panel').hidden = selectedExpeditionRegion === null;
+  }
+  function renderPersonnel() {
+    const expedition = game.expedition;
+    const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', loot: 'Charakter-Fundchance' };
+    $('#personnel-slots').innerHTML = expedition.seats.map((id, index) => `<div class="expedition-seat"><strong>Platz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id).name : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${index}">Entfernen</button>` : ''}</div>`).join('');
+    $('#personnel-slot-count').textContent = `${expedition.seats.filter(Boolean).length} / 5 Plätze`;
+    $('#personnel-shards').innerHTML = ['uncommon', 'common', 'rare', 'epic'].map((tier, index) => `<div class="expedition-shard"><strong>${tier}: ${integer(expedition.shards[tier])}</strong>${index < 3 ? `<button class="button button-outline" data-shard-combine="${tier}" ${expedition.shards[tier] < 5 ? 'disabled' : ''}>5 zu 1 ${['common', 'rare', 'epic'][index]}</button>` : ''}</div>`).join('');
+    $('#personnel-cards').innerHTML = EXPEDITION_CHARACTERS.map(c => {
+      const card = expedition.characters[c.id];
+      if (!card) return `<article class="personnel-card"><span class="pill pill-gray">${c.rarity}</span><h3>Unbekannt</h3><p>${EXPEDITION_REGIONS[c.region]} · Endlosauftrag</p></article>`;
+      const tier = card.level < 10 ? EXPEDITION_SHARD_TIERS[card.level - 1] : null;
+      const cost = card.level * EXPEDITION_RARITY_COST[c.rarity];
+      const bonus = c.base + (card.level - 1) * c.step;
+      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p><p>${tier ? `${card.progress}/${cost} Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-specific="${c.id}" ${expedition.specificShards[c.id] ? '' : 'disabled'}>Eigener Shard (${expedition.specificShards[c.id] || 0})</button>` : ''}<div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Platz ${seat + 1}</button>`).join('')}</div></article>`;
     }).join('');
   }
   function renderCompany() {
@@ -1692,7 +1991,10 @@
     if (currentView === 'company') renderCompany();
     if (currentView === 'statistics') renderStatistics();
     if (currentView === 'customers') renderCustomers();
+    if (currentView === 'expeditions') renderExpeditions();
+    if (currentView === 'personnel') renderPersonnel();
     if (currentView === 'special') renderSpecialTrips();
+    if (currentView === 'expedition-jobs') renderExpeditionJobs();
     if (currentView === 'hub') renderHub();
   }
 
@@ -1741,6 +2043,15 @@
     }).join('') : '<p>Derzeit ist kein geeigneter LKW frei.</p>';
     $('#assign-dialog').showModal();
   }
+  function openExpeditionJobDialog(region, jobId) {
+    const job = game.expedition.jobs.find(item => item.id === jobId && item.region === region);
+    if (!job || !game.expedition.regions[region]?.endlessUnlocked) return;
+    $('#assign-title').textContent = `${expeditionJobLabel(job.kind)} #${job.id}`;
+    $('#assign-description').textContent = `${EXPEDITION_REGIONS[region]} · ${Math.round(expeditionDuration(region, 'endless') / 3600000)} Stunden Fahrzeit. Wähle einen freien regulären LKW.`;
+    const trucks = freeTrucks().filter(truck => truck.tier >= 2);
+    $('#assign-vehicles').innerHTML = trucks.length ? trucks.map(truck => `<button type="button" class="assign-choice" data-choose-expedition="${region}:${jobId}:${truck.id}"><span><strong>${truck.symbol} ${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${Math.round(expeditionDuration(region, 'endless') / 3600000)} Stunden Fahrzeit</small></span><span>Auftrag zuweisen ↗</span></button>`).join('') : '<p>Derzeit ist kein regulärer LKW frei.</p>';
+    $('#assign-dialog').showModal();
+  }
 
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button');
@@ -1761,6 +2072,16 @@
     if (target.dataset.specialCustomer) { selectedSpecialCustomer = target.dataset.specialCustomer; renderSpecialTrips(); }
     if (target.dataset.specialBack !== undefined) { selectedSpecialCustomer = null; renderSpecialTrips(); }
     if (target.dataset.startTrip) openCustomerTripDialog(target.dataset.startTrip);
+    if (target.dataset.expeditionJobGroup) { selectedExpeditionJobGroup = target.dataset.expeditionJobGroup; renderExpeditionJobs(); }
+    if (target.dataset.expeditionJobBack !== undefined) { selectedExpeditionJobGroup = null; renderExpeditionJobs(); }
+    if (target.dataset.openExpeditionJob) {
+      const [region, jobId] = target.dataset.openExpeditionJob.split(':').map(Number);
+      openExpeditionJobDialog(region, jobId);
+    }
+    if (target.dataset.chooseExpedition) {
+      const [region, jobId, truckId] = target.dataset.chooseExpedition.split(':');
+      if (startExpeditionMission(Number(region), 'endless', truckId, Number(jobId))) $('#assign-dialog').close();
+    }
     if (target.dataset.truckOrders !== undefined) { $('#truck-dialog').close(); setView('orders'); }
     if (target.dataset.openDepartment) openDepartmentDialog(target.dataset.openDepartment);
     if (target.dataset.unlockDepartment) unlockDepartment(target.dataset.unlockDepartment);
@@ -1768,6 +2089,23 @@
     if (target.dataset.upgradeWorkshop !== undefined) upgradeWorkshop();
     if (target.dataset.upgradeSales !== undefined) upgradeSales();
     if (target.dataset.customerSkill) allocateCustomerSkill(target.dataset.customer, target.dataset.customerSkill);
+    if (target.dataset.expeditionRegion !== undefined) { selectedExpeditionRegion = Number(target.dataset.expeditionRegion); selectedExpeditionNode = Math.min(game.expedition.regions[selectedExpeditionRegion].discovered, 7); renderExpeditions(); }
+    if (target.dataset.expeditionBack !== undefined) { selectedExpeditionRegion = null; renderExpeditions(); }
+    if (target.dataset.expeditionNode !== undefined) { selectedExpeditionNode = Number(target.dataset.expeditionNode); renderExpeditions(); }
+    if (target.dataset.expeditionDraw !== undefined) drawExpeditionJob(Number(target.dataset.expeditionDraw));
+    if (target.dataset.expeditionDiscover !== undefined) discoverExpeditionPlace(Number(target.dataset.expeditionDiscover));
+    if (target.dataset.expeditionStart) {
+      const [region, kind, place, truckId] = target.dataset.expeditionStart.split(':');
+      startExpeditionMission(Number(region), kind, truckId, Number(place));
+    }
+    if (target.dataset.characterSeat) {
+      const [id, seat] = target.dataset.characterSeat.split(':');
+      assignCharacterSeat(id, Number(seat));
+    }
+    if (target.dataset.characterRemove !== undefined) { game.expedition.seats[Number(target.dataset.characterRemove)] = null; save(); render(); }
+    if (target.dataset.characterShard) giveCharacterShard(target.dataset.characterShard);
+    if (target.dataset.characterSpecific) giveCharacterShard(target.dataset.characterSpecific, true);
+    if (target.dataset.shardCombine) combineExpeditionShards(target.dataset.shardCombine);
     if (target.dataset.startCity) chooseStartCity(target.dataset.startCity);
     if (target.dataset.pin) toggleOrderPin(target.dataset.pin);
     if (target.dataset.assign) openAssignDialog(target.dataset.assign);
@@ -1819,15 +2157,16 @@
   window.addEventListener('hashchange', () => {
     const requested = location.hash.slice(1);
     const view = requested === 'garage' ? 'fleet' : requested;
-    if (['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'statistics', 'customers'].includes(view) && view !== currentView) setView(view);
+    if (['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'expeditions', 'statistics', 'customers'].includes(view) && view !== currentView) setView(view);
   });
   function tick() {
     const now = Date.now();
     $('#game-clock').textContent = new Date(now).toLocaleTimeString('de-DE');
     const refreshed = autoRefreshOrders(now);
     const tripsSettled = settleTrips(now);
+    const expeditionsSettled = settleExpeditions(now);
     settleHub(now);
-    if (tripsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
+    if (tripsSettled || expeditionsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
   }
   const requested = location.hash.slice(1);
   const requestedView = requested === 'garage' ? 'fleet' : requested;
@@ -1836,7 +2175,7 @@
   }
   replenishOrders();
   save();
-  if (game.startCity && ['dashboard', 'orders', 'special', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'statistics', 'customers'].includes(requestedView)) currentView = requestedView;
+  if (game.startCity && ['dashboard', 'orders', 'special', 'expedition-jobs', 'fleet', 'dealer', 'hub', 'inventory', 'development', 'company', 'personnel', 'expeditions', 'statistics', 'customers'].includes(requestedView)) currentView = requestedView;
   setView(currentView);
   showStartDialog();
   tick();

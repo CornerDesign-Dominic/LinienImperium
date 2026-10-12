@@ -27,6 +27,7 @@ api.setGame(state);
 assert.equal(api.customerLevel(0), 0);
 assert.equal(api.availableCustomerSkillPoints('frischgut'), 0);
 assert.equal(api.allocateCustomerSkill('frischgut', 'pay'), false);
+state.expedition.regions[1].endlessUnlocked = true;
 assert.equal(api.trustTotalForLevel(1), 110);
 assert.equal(api.trustTotalForLevel(2), 230);
 assert.equal(api.trustTotalForLevel(150) - api.trustTotalForLevel(149), 1600);
