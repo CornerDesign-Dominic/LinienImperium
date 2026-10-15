@@ -95,6 +95,8 @@
   const MAX_TRUST_LEVEL = 150;
   const CUSTOMER_SKILL_LIMITS = { pay: 100, special: 25, referral: 25 };
   const TRUST_REWARDS = { normal: 10, special: 25, referral: 100 };
+  const PROJECT_DEADLINES = { special: 3600000, referral: 3 * 3600000 };
+  const OVERTIME_REGEN_MS = 10 * 60000;
   const DUAL_WAY_CHANCE = .10;
   const CITY_DISTANCE_MIN = 5;
   const CITY_DISTANCE_MAX = 25;
@@ -283,7 +285,7 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), overtimePoints: 100, overtimeCapacity: 100, pendingLevelUps: [], inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), overtimePoints: 100, overtimeCapacity: 100, overtimeLastRegenAt: Date.now(), pendingLevelUps: [], inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
       stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, transportUpgradeSpent: 0, hubUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
@@ -871,7 +873,8 @@
   let selectedTruckId = null;
   let pendingSaleTruckId = null;
   let pendingSaleQuote = null;
-  let selectedSpecialCustomer = null;
+  let selectedProjectId = null;
+  let selectedFleetTemplate = 0;
   let selectedExpeditionJobGroup = null;
   let selectedDepartmentId = null;
   let bulkRewardIds = [];
@@ -880,7 +883,7 @@
   let toastTimer;
 
   function newExpedition() {
-    return { points: 50, lastRegenAt: Date.now(), regions: EXPEDITION_REGIONS.map(() => ({ discovered: 0, deliveries: Array(7).fill(false), endlessUnlocked: false, moduleAwarded: false, finalClaimed: false, customerUnlocked: false })), jobs: [], missions: [], shards: Object.fromEntries(RARITIES.map(r => [r.id, 0])), characters: {}, seats: Array(5).fill(null), nextMission: 1 };
+    return { points: 50, lastRegenAt: Date.now(), regions: EXPEDITION_REGIONS.map(() => ({ discovered: 0, deliveries: Array(7).fill(false), endlessUnlocked: false, moduleAwarded: false, finalClaimed: false, customerUnlocked: false })), jobs: [], missions: [], shards: Object.fromEntries(RARITIES.map(r => [r.id, 0])), characters: {}, seats: Array(5).fill(null), fleetTemplates: [Array(5).fill(null), Array(5).fill(null)], nextMission: 1 };
   }
   function ensureExpedition(stored) {
     let changed = false;
@@ -964,6 +967,17 @@
     if (expedition.points >= expeditionCapacity()) expedition.lastRegenAt = now;
     return true;
   }
+  function regenerateOvertime(now = Date.now()) {
+    const capacity = game.overtimeCapacity ?? 100;
+    game.overtimeLastRegenAt ||= now;
+    if (game.overtimePoints >= capacity) { game.overtimeLastRegenAt = now; return false; }
+    const earned = Math.floor(Math.max(0, now - game.overtimeLastRegenAt) / OVERTIME_REGEN_MS);
+    if (!earned) return false;
+    game.overtimePoints = Math.min(capacity, game.overtimePoints + earned);
+    game.overtimeLastRegenAt = game.overtimePoints >= capacity ? now : game.overtimeLastRegenAt + earned * OVERTIME_REGEN_MS;
+    save();
+    return true;
+  }
   function spendExpeditionPoints(amount) {
     regenerateExpedition();
     if (game.expedition.points < amount) return false;
@@ -1018,7 +1032,7 @@
     const kind = EXPEDITION_JOB_WEIGHTS.find(item => (cumulative += item.chance) > roll)?.kind || 'material';
     if (kind === 'special' || kind === 'referral') {
       const customer = customerById(EXPEDITION_CUSTOMER_IDS[index]);
-      queueCustomerTrip({ category: customer.category, customer: customer.id, homeCity: game.startCity }, kind);
+      queueCustomerTrip({ category: customer.category, customer: customer.id, homeCity: game.startCity, region: index }, kind);
     } else {
       const stageRoll = Math.random();
       let stageTotal = 0;
@@ -1153,9 +1167,14 @@
     addEvent(`${EXPEDITION_REGIONS[mission.region]}: ${mission.reward}.`);
     save(); render(); return true;
   }
-  function assignCharacterSeat(id, seat) {
+  function fleetTemplate(index) {
+    game.expedition.fleetTemplates ||= [Array(5).fill(null), Array(5).fill(null)];
+    return index === 0 ? game.expedition.seats : game.expedition.fleetTemplates?.[index - 1];
+  }
+  function assignCharacterSeat(id, seat, template = 0) {
     if (!Number.isInteger(seat) || seat < 0 || seat >= 5 || !game.expedition.characters[id]) return false;
-    const seats = game.expedition.seats;
+    const seats = fleetTemplate(template);
+    if (!seats) return false;
     const previous = seats.indexOf(id);
     if (previous >= 0) seats[previous] = null;
     seats[seat] = id;
@@ -1742,10 +1761,139 @@
   }
   function queueCustomerTrip(source, kind) {
     const order = createOrder(game.nextOrder++, { category: source.category, customer: source.customer, startCity: source.homeCity, kind });
+    const region = Number.isInteger(source.region) ? source.region : Math.max(0, EXPEDITION_CUSTOMER_IDS.indexOf(source.customer));
+    const names = kind === 'referral'
+      ? ['Großprojekt Hafenverbund', 'Großprojekt Versorgungskette', 'Großprojekt Industrieanlage', 'Großprojekt Fernkorridor', 'Großprojekt Kontinentalnetz']
+      : ['Großauftrag Stadtversorgung', 'Großauftrag Baustellenlogistik', 'Großauftrag Materialbergung', 'Großauftrag Ferntransport', 'Großauftrag Handelsroute'];
+    order.projectName = names[region];
+    order.projectRegion = region;
+    order.volume = (kind === 'referral' ? 1100 : 400) + region * (kind === 'referral' ? 140 : 60);
+    order.baseVolume = order.volume;
+    order.distance = (kind === 'referral' ? 240 : 120) + region * (kind === 'referral' ? 40 : 25);
+    order.routeType = 'single';
+    order.deadlineMs = PROJECT_DEADLINES[kind];
     order.status = 'queued';
     game.orders.push(order);
     addEvent(`${customerById(source.customer).name}: ${kind === 'special' ? 'Sonderfahrt' : 'Empfehlungsfahrt'} ${order.id} erhalten.`);
     return order;
+  }
+  function projectFleetVehicles(template) {
+    const ids = fleetTemplate(template);
+    if (!ids || !ids.some(Boolean) || new Set(ids.filter(Boolean)).size !== ids.filter(Boolean).length) return null;
+    const vehicles = ids.filter(Boolean).map(cardId => {
+      const card = vehicleCardById(cardId);
+      if (!card || !game.expedition.characters[cardId]) return null;
+      const truck = game.trucks.find(item => item.cardId === cardId) || game.expedition.characters[cardId].parkedTruck;
+      return { ...truck || createCardTruck(card), cardId };
+    });
+    return vehicles.some(vehicle => !vehicle) ? null : vehicles;
+  }
+  function fillProjectTrips(order, at) {
+    const project = order.project;
+    let remaining = Math.max(0, order.volume - order.delivered - project.vehicles.reduce((sum, vehicle) => sum + (vehicle.cargo || 0), 0));
+    for (const vehicle of project.vehicles) {
+      if (vehicle.cargo || remaining <= 0) continue;
+      vehicle.cargo = Math.min(vehicle.capacity, remaining);
+      remaining -= vehicle.cargo;
+      vehicle.nextAt = at + tourSeconds(order, vehicle, vehicle.cargo) * 1000;
+    }
+  }
+  function projectEstimatedEnd(order, now = Date.now()) {
+    const copy = { ...order, project: { ...order.project, vehicles: order.project.vehicles.map(vehicle => ({ ...vehicle })) } };
+    let guard = 0;
+    while (copy.delivered < copy.volume && guard++ < 10000) {
+      fillProjectTrips(copy, now);
+      const next = copy.project.vehicles.filter(vehicle => vehicle.cargo).sort((a, b) => a.nextAt - b.nextAt)[0];
+      if (!next) return Infinity;
+      now = next.nextAt;
+      copy.delivered += Math.min(next.cargo, copy.volume - copy.delivered);
+      next.cargo = 0;
+    }
+    return now;
+  }
+  function startFleetProject(orderId, template, now = Date.now()) {
+    const order = game.orders.find(item => item.id === orderId && item.status === 'queued' && PROJECT_DEADLINES[item.kind]);
+    const vehicles = projectFleetVehicles(template);
+    if (!order || !vehicles) return false;
+    order.status = 'active';
+    order.project = { template, startedAt: now, deadlineAt: now + order.deadlineMs, vehicles: vehicles.map(vehicle => ({ ...vehicle, cargo: 0, nextAt: null })) };
+    fillProjectTrips(order, now);
+    addEvent(`${order.projectName} ${order.id} mit Flotte ${template + 1} gestartet.`);
+    save(); render(); return true;
+  }
+  function finishFleetProject(order, at) {
+    order.status = 'completed'; order.completedAt = at;
+    order.project.vehicles.forEach(vehicle => { vehicle.cargo = 0; vehicle.nextAt = null; });
+    for (const vehicle of order.project.vehicles) {
+      const record = game.trucks.find(item => item.cardId === vehicle.cardId) || game.expedition.characters[vehicle.cardId]?.parkedTruck;
+      if (record) record.ordersCompleted = (record.ordersCompleted || 0) + 1;
+    }
+    order.completionReward = makeCompletionReward(order);
+    if (order.customer) {
+      game.customerTrust[order.customer] = (game.customerTrust[order.customer] || 0) + (TRUST_REWARDS[order.kind] || 0);
+      if (order.kind === 'special' && Math.random() < customerTripChance(order, 'referral')) queueCustomerTrip(order, 'referral');
+    }
+    game.completed++;
+    addEvent(`${order.projectName} ${order.id} abgeschlossen. Belohnung bereit.`);
+  }
+  function settleFleetProjects(now = Date.now()) {
+    let changed = false;
+    for (const order of game.orders) {
+      if (order.status !== 'active' || !order.project) continue;
+      const deadline = order.project.deadlineAt;
+      while (order.status === 'active') {
+        const vehicle = order.project.vehicles.filter(item => item.cargo).sort((a, b) => a.nextAt - b.nextAt)[0];
+        if (!vehicle || vehicle.nextAt > Math.min(now, deadline)) break;
+        const at = vehicle.nextAt;
+        const cargo = Math.min(vehicle.cargo, order.volume - order.delivered);
+        const { revenue, cost } = tourEconomics(order, vehicle, cargo, order.delivered);
+        game.coins = round2(game.coins + revenue - cost);
+        game.stats.grossRevenue = round2(game.stats.grossRevenue + revenue);
+        game.stats.operatingCosts = round2(game.stats.operatingCosts + cost);
+        vehicle.cargo = 0; vehicle.nextAt = null;
+        order.delivered += cargo;
+        const parked = game.trucks.find(item => item.cardId === vehicle.cardId) || game.expedition.characters[vehicle.cardId]?.parkedTruck;
+        if (parked) { parked.kmDriven = (parked.kmDriven || 0) + order.distance * 2; parked.toursCompleted = (parked.toursCompleted || 0) + 1; }
+        game.stats.trips++;
+        game.stats.tons += cargo;
+        game.stats.km += order.distance * 2;
+        game.stats.tonKm += cargo * order.distance;
+        const oldLevel = levelForXp(game.xp, game).level;
+        game.xp = round2(game.xp + cargo);
+        const newLevel = levelForXp(game.xp, game).level;
+        if (newLevel > oldLevel) {
+          game.expedition.points += 50 * (newLevel - oldLevel);
+          for (let level = oldLevel + 1; level <= newLevel; level++) game.pendingLevelUps.push(level);
+        }
+        changed = true;
+        if (order.delivered >= order.volume) { finishFleetProject(order, at); break; }
+        fillProjectTrips(order, at);
+      }
+      if (order.status === 'active' && now >= deadline) {
+        order.status = 'failed'; order.project.vehicles.forEach(vehicle => { vehicle.cargo = 0; vehicle.nextAt = null; });
+        addEvent(`${order.projectName} ${order.id}: Frist abgelaufen.`);
+        changed = true;
+      }
+    }
+    if (changed) save();
+    return changed;
+  }
+  function spendOvertime(orderId, amount, now = Date.now()) {
+    if (![1, 5, 10].includes(amount)) return false;
+    const order = game.orders.find(item => item.id === orderId && item.status === 'active' && item.project);
+    if (!order) return false;
+    settleFleetProjects(now);
+    if (order.status !== 'active' || now >= order.project.deadlineAt) return false;
+    regenerateOvertime(now);
+    if (game.overtimePoints < amount) return false;
+    game.overtimePoints -= amount;
+    let delivered = 0;
+    let bonusHits = 0;
+    for (let i = 0; i < amount; i++) { const hit = Math.random() < .01; delivered += hit ? 11 : 10; if (hit) bonusHits++; }
+    order.delivered = Math.min(order.volume, order.delivered + delivered);
+    if (order.delivered >= order.volume) finishFleetProject(order, now);
+    addEvent(`${amount} Überstundenpunkte: ${tons(delivered)} t sofort geliefert${bonusHits ? ` · ${bonusHits} Bonus` : ''}.`);
+    save(); render(); return true;
   }
   function orderDuration(order, truck) {
     let remaining = order.volume - order.delivered;
@@ -1791,7 +1939,7 @@
   function settleTrips(now) {
     let changed = false;
     for (const order of game.orders) {
-      if (order.status !== 'active') continue;
+      if (order.status !== 'active' || order.project) continue;
       const truck = truckById(order.truckId);
       if (!truck) { order.status = order.kind === 'normal' && !order.crafted ? 'available' : 'queued'; order.truckId = null; order.tripStartAt = null; changed = true; continue; }
       while (order.status === 'active') {
@@ -1991,16 +2139,6 @@
     replenishOrders();
     save(); $('#assign-dialog').close(); render(); showToast(`${truck.id} ist unterwegs!`);
   }
-  function assignCustomerTrip(orderId, truckId) {
-    const order = game.orders.find(o => o.id === orderId && o.status === 'queued' && ['special', 'referral'].includes(o.kind));
-    const truck = order && eligibleFreeTrucks(order).find(t => t.id === truckId);
-    if (!order || !truck) return false;
-    order.status = 'active'; order.truckId = truck.id; order.tripStartAt = Date.now();
-    order.tripCargo = Math.min(truck.capacity, order.volume - order.delivered);
-    addEvent(`${truck.id} startet ${order.kind === 'special' ? 'Sonderfahrt' : 'Empfehlungsfahrt'} ${order.id} für ${customerById(order.customer).name}.`);
-    save(); $('#assign-dialog').close(); render(); showToast(`${truck.id} ist unterwegs!`);
-    return true;
-  }
   function upgradeTruckCapacity(truckId) {
     const truck = truckById(truckId);
     if (!truck) return false;
@@ -2141,8 +2279,10 @@
     const section = (title, cards) => cards.length ? `<section class="inventory-section"><h2 class="inventory-section-title">${title}</h2><div class="inventory-item-grid">${cards.join('')}</div></section>` : '';
     const tripCards = privateTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">⌖</span><div class="inventory-item-info"><strong>Privatabholung</strong><small>${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-private="${order.id}">LKW zuweisen</button>` : ''}</article>`);
     const craftedCards = craftedTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">◎</span><div class="inventory-item-info"><strong>${customerById(order.customer).name}</strong><small>${categoryById(order.category).label} · ${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-crafted="${order.id}">LKW zuweisen</button>` : ''}</article>`);
+    const projectCards = game.orders.filter(order => PROJECT_DEADLINES[order.kind] && order.status === 'queued').map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.kind === 'referral' ? 'EPIC' : 'RARE'}</span><span class="inventory-item-icon" aria-hidden="true">${order.kind === 'referral' ? '★' : '✦'}</span><div class="inventory-item-info"><strong>${order.projectName}</strong><small>${tons(order.volume)} t · ${order.distance} km · Frist ${duration(order.deadlineMs / 1000)}</small></div><button class="button button-primary" data-project-open="${order.id}">Öffnen</button></article>`);
     const content = section('Materialien', materials.map(itemCard))
       + section('Zahnräder', gears.map(itemCard))
+      + section('Großaufträge und Projekte', projectCards)
       + section('Privatabholungen', tripCards)
       + section('Hergestellte Kundenaufträge', craftedCards);
     $('#inventory-content').innerHTML = content || '<div class="inventory-empty"><span class="inventory-empty-icon">▣</span><h2>Deine Vorräte sind leer</h2><p>Gesammelte Materialien und hergestellte Aufträge erscheinen hier.</p></div>';
@@ -2171,26 +2311,37 @@
     const cost = hubUpgradeContactCost(nextLevel);
     el.innerHTML = `<div class="hub-grid"><section class="panel hub-main"><div class="section-head"><h2>${startCityById(game.startCity)?.city || 'Stadthub'}</h2><span class="pill pill-green">AKTIV</span></div><div class="hub-metrics"><div><span>Stadttransporter</span><strong>${hubTrucks().length} / ${hubCapacity()}</strong></div><div><span>Vertrieb</span><strong>Stufe ${h.salesLevel} / 25</strong></div><div><span>Einkaufsmenge</span><strong>${hubSalesPercent(h.salesLevel)} %</strong></div><div><span>Ware je Stunde</span><strong>${tons(hourlyTons)} t</strong></div></div><p>${phase} · Nächster Einkauf in ${untilPurchase}. 12 km je Richtung, 45 Minuten Fahrzeit pro Stunde.</p><p>Vorläufige Rechnung: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf und ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf je Tonne. Keine XP und kein Zahnradloot.</p></section><section class="panel hub-main"><div class="section-head"><h2>Kassenbestand</h2><span>${Math.min(h.cashboxCycles, HUB_CASHBOX_CYCLES)} / ${HUB_CASHBOX_CYCLES} Stunden</span></div><div class="hub-cash">${money(h.cashboxCoins)} M</div><p>${h.cashboxHints} Abholhinweise warten auf Abholung. Während der 45 Arbeitsminuten wachsen Kasse und Hinweise laufend.</p><button class="button button-primary" data-collect-hub ${h.cashboxCoins || h.cashboxHints ? '' : 'disabled'}>Ertrag und Hinweise abholen</button></section></div><section class="panel hub-main"><div class="section-head"><h2>Vertrieb ausbauen</h2><span class="pill ${construction ? 'pill-green' : 'pill-gray'}">${construction ? 'IM BAU' : 'BEREIT'}</span></div>${construction ? `<p>Stufe ${construction.level} ist in Arbeit. Fertig in ${countdown((construction.finishAt - Date.now()) / 1000)}. Der Hub arbeitet währenddessen weiter; der höhere Einkaufswert gilt nach Fertigstellung.</p>` : h.salesLevel >= HUB_MAX_SALES_LEVEL ? '<p>Maximalstufe erreicht: Der Vertrieb kauft 100 % der stündlich verteilbaren Menge ein.</p>' : `<p>Stufe ${nextLevel}: +1 Prozentpunkt Einkaufsmenge. Bauzeit ${nextLevel * 12} Stunden. Benötigt ${cost} Lieferantenkontakte, ${COMPANY_BALANCE.upgradeItems(nextLevel)} Firmenausbau-Items und ${money(COMPANY_BALANCE.upgradeCoins(nextLevel))} M.</p><button class="button button-primary" data-upgrade-hub ${game.inventory.supplierContacts >= cost && game.inventory.companyItems >= COMPANY_BALANCE.upgradeItems(nextLevel) && game.coins >= COMPANY_BALANCE.upgradeCoins(nextLevel) ? '' : 'disabled'}>Ausbau starten</button>`}</section><section class="panel hub-main"><div class="section-head"><h2>Stadttransporter</h2><button class="text-button" data-go="dealer">Zum Händler ↗</button></div>${fleet.length ? fleet.map(truck => { const active = game.orders.some(order => order.status === 'active' && order.truckId === truck.id); return `<div class="hub-truck-row"><span>${truck.symbol} <strong>${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t · ${truckRarity(truck).label} ${truckRarity(truck).level} ★</small></span><button class="button button-outline" data-toggle-hub-truck="${truck.id}" ${active ? 'disabled' : ''}>${truck.hubAssigned ? 'Aus Hub nehmen' : 'Im Hub einsetzen'}</button></div>`; }).join('') : '<p>Du besitzt noch keinen Stadttransporter.</p>'}</section>`;
   }
+  function projectCardMarkup(order) {
+    const label = order.kind === 'referral' ? 'Empfehlungsprojekt' : 'Sonderauftrag';
+    const state = order.status === 'queued' ? 'BEREIT' : order.status === 'active' ? 'LÄUFT' : order.status === 'failed' ? 'FRIST ABGELAUFEN' : order.completionReward?.claimedAt ? 'BELOHNUNG ABGEHOLT' : 'BELOHNUNG BEREIT';
+    return `<button type="button" class="project-card rarity-${order.kind === 'referral' ? 'epic' : 'rare'}" data-project-open="${order.id}"><span class="project-card-kind">${label} · ${EXPEDITION_REGIONS[order.projectRegion || 0]}</span><strong>${order.projectName || label}</strong><small>${customerById(order.customer)?.name || 'Expedition'} · ${tons(order.volume)} t · ${order.distance} km · Frist ${duration((order.deadlineMs || PROJECT_DEADLINES[order.kind]) / 1000)}</small><span class="pill ${order.status === 'completed' ? 'pill-green' : 'pill-gray'}">${state}</span></button>`;
+  }
   function renderSpecialTrips() {
     const el = $('#special-content');
-    if (!selectedSpecialCustomer) {
-      const referrals = game.orders.filter(o => o.kind === 'referral' && o.status === 'queued').length;
-      el.innerHTML = `<div class="special-customer-grid"><button type="button" class="special-customer-card rarity-epic" data-special-customer="referrals"><span class="special-initials">★</span><span><strong>Empfehlungsaufträge</strong><small>${referrals} Empfehlungsfahrten offen</small></span><span>›</span></button>${CUSTOMERS.filter(customer => customerUnlocked(customer.id) || game.orders.some(o => o.customer === customer.id && o.kind === 'special')).map(customer => {
-        const queued = game.orders.filter(o => o.customer === customer.id && o.status === 'queued');
-        const special = queued.filter(o => o.kind === 'special').length;
-        return `<button type="button" class="special-customer-card rarity-rare" data-special-customer="${customer.id}"><span class="special-initials">${customer.initials}</span><span><strong>${customer.name}</strong><small>${special} Sonderfahrten offen</small></span><span>›</span></button>`;
-      }).join('')}</div>`;
+    const projects = game.orders.filter(order => PROJECT_DEADLINES[order.kind]);
+    const order = projects.find(item => item.id === selectedProjectId);
+    if (!order) {
+      selectedProjectId = null;
+      el.innerHTML = `<div class="project-overview"><div class="project-intro"><h2>Großaufträge und Projekte</h2><p>Finde Sonderaufträge bei Stammkunden und auf Expeditionen. Wähle eine deiner drei Flottenvorlagen und liefere vor Ablauf der Frist.</p><button type="button" class="button button-outline" data-go="personnel">Flottenvorlagen bearbeiten</button></div>${projects.length ? projects.slice().reverse().map(projectCardMarkup).join('') : '<p>Noch keine Großaufträge gefunden.</p>'}</div>`;
       return;
     }
-    const customer = customerById(selectedSpecialCustomer);
-    const isReferralPage = selectedSpecialCustomer === 'referrals';
-    if (!customer && !isReferralPage) { selectedSpecialCustomer = null; renderSpecialTrips(); return; }
-    const orders = game.orders.filter(o => isReferralPage ? o.kind === 'referral' : o.customer === customer.id && o.kind === 'special');
-    const queued = orders.filter(o => o.status === 'queued');
-    const active = orders.filter(o => o.status === 'active');
-    const completed = orders.filter(o => o.status === 'completed').sort((a,b) => b.completedAt - a.completedAt);
-    const row = o => `<article class="special-trip-row rarity-${o.kind === 'referral' ? 'epic' : 'rare'}"><div><strong>${o.kind === 'special' ? 'Sonderfahrt' : 'Empfehlungsfahrt'} ${o.id}</strong><small>${categoryById(o.category).label} · ${o.from} → ${o.to} · ${tons(o.volume)} t · ${o.distance} km · ${routeTypeLabel(o)}</small></div><div>${o.status === 'active' ? `<strong>${tons(o.delivered)} / ${tons(o.volume)} t</strong><small>LKW ${o.truckId} · ${Math.round(progress(o))} %</small><div class="mini-progress"><span style="width:${progress(o)}%"></span></div>` : o.status === 'completed' ? `<strong>Abgeschlossen</strong><small>${o.completionReward?.claimedAt ? `Prämie abgeholt${o.completionReward.capacityModule ? ' · Modul erhalten' : ''}` : 'Prämie bereit'}</small>${!o.completionReward?.claimedAt ? `<button class="button button-outline" data-claim-order="${o.id}">Beute abholen</button>` : ''}` : '<span class="pill pill-gray">BEREIT</span>'}</div></article>`;
-    el.innerHTML = `<button class="text-button special-back" data-special-back>← Übersicht</button><div class="page-heading"><h2>${isReferralPage ? 'Empfehlungsaufträge' : customer.name}</h2></div><div class="special-actions"><button class="button button-primary" data-start-trip="${isReferralPage ? 'referral' : 'special'}" ${queued.length ? '' : 'disabled'}>${isReferralPage ? 'Empfehlungsfahrt' : 'Sonderfahrt'} durchführen · ${queued.length} offen</button></div><h3>Laufende Fahrten</h3>${active.length ? active.map(row).join('') : '<p>Keine laufenden Fahrten.</p>'}<h3>Verfügbare Fahrten</h3>${queued.length ? queued.map(row).join('') : '<p>Keine Fahrten offen.</p>'}<h3>Abgeschlossene Fahrten</h3>${completed.length ? completed.map(row).join('') : '<p>Noch keine Fahrt abgeschlossen.</p>'}`;
+    const active = order.status === 'active';
+    const now = Date.now();
+    const remaining = active ? Math.max(0, order.project.deadlineAt - now) : 0;
+    const estimated = active ? projectEstimatedEnd(order, now) : null;
+    const fleet = active ? order.project.vehicles : [];
+    const available = [0, 1, 2].map(template => ({ template, vehicles: projectFleetVehicles(template) }));
+    const options = order.status === 'queued' ? `<div class="project-template-choices">${available.map(({ template, vehicles }) => {
+      const preview = vehicles ? { ...order, delivered: 0, project: { vehicles: vehicles.map(vehicle => ({ ...vehicle, cargo: 0, nextAt: null })) } } : null;
+      const seconds = preview ? (projectEstimatedEnd(preview, now) - now) / 1000 : null;
+      return `<button type="button" class="project-template-option" data-project-start="${order.id}:${template}" ${vehicles ? '' : 'disabled'}><strong>Flotte ${template + 1}</strong><small>${vehicles ? `${vehicles.map(vehicle => vehicle.model).join(' · ')}<br>Voraussichtlich ${duration(seconds)} · Frist ${duration(order.deadlineMs / 1000)}${seconds * 1000 > order.deadlineMs ? ' · Überstunden nötig' : ''}` : 'Mindestens eine Karte einsetzen'}</small></button>`;
+    }).join('')}</div>` : '';
+    const fleetStrip = active ? `<div class="project-fleet-strip">${fleet.map(vehicle => `<span title="${vehicle.model}: ${tons(vehicle.capacity)} t"><strong>${vehicle.symbol}</strong><small>${vehicle.model}<br>${tons(vehicle.capacity)} t</small></span>`).join('')}</div>` : '';
+    const overtime = active ? `<div class="project-overtime"><h3>Überstunden machen</h3><p>1 Punkt liefert 10 t sofort. Pro Punkt besteht 1 % Chance auf 1 t extra. ${integer(game.overtimePoints)} / ${integer(game.overtimeCapacity)} Punkte · 1 Punkt alle 10 Minuten.</p><div class="project-overtime-actions">${[1, 5, 10].map(amount => `<button type="button" class="button button-primary" data-project-overtime="${order.id}:${amount}" ${game.overtimePoints >= amount ? '' : 'disabled'}>${amount} ${amount === 1 ? 'Punkt' : 'Punkte'} · ${amount * 10} t</button>`).join('')}</div></div>` : '';
+    const deadlineText = active ? duration(remaining / 1000) : order.status === 'failed' ? 'Abgelaufen' : order.status === 'completed' ? 'Geschafft' : duration(order.deadlineMs / 1000);
+    const fleetTimeText = active ? duration((estimated - now) / 1000) : order.status === 'completed' ? 'Geliefert' : order.status === 'failed' ? 'Nicht geschafft' : 'Vorlage wählen';
+    const completed = order.status === 'completed' && !order.completionReward?.claimedAt ? `<button type="button" class="button button-primary" data-claim-order="${order.id}">Belohnung einsammeln</button>` : '';
+    el.innerHTML = `<button type="button" class="text-button special-back" data-project-back>← Alle Großaufträge</button><article class="project-detail"><div class="project-hero project-hero-${order.kind}"><img src="assets/project-${order.kind}.svg" alt="${order.kind === 'special' ? 'Frachtterminal' : 'Großes Logistikprojekt'}"><div class="project-hero-copy"><span>${order.kind === 'referral' ? 'EMPFEHLUNGSPROJEKT' : 'SONDERAUFTRAG'} · ${EXPEDITION_REGIONS[order.projectRegion || 0]}</span><h2>${order.projectName || 'Großauftrag'}</h2><p>${customerById(order.customer)?.name || 'Expedition'} · ${order.from} → ${order.to}</p></div></div><div class="project-body"><div class="project-timing"><div><small>FRIST ${active ? 'VERBLEIBEND' : 'INSGESAMT'}</small><strong>${deadlineText}</strong></div><div><small>FLOTTE BRAUCHT NOCH</small><strong>${fleetTimeText}</strong></div></div><div class="project-deadline-track"><span style="width:${active ? remaining / order.deadlineMs * 100 : order.status === 'queued' ? 100 : 0}%"></span></div><div class="project-cargo"><span>${tons(order.delivered)} / ${tons(order.volume)} t geliefert · ${order.distance} km je Tour</span><div class="mini-progress"><span style="width:${progress(order)}%"></span></div></div>${options}${fleetStrip}${overtime}${completed}${order.status === 'failed' ? '<p class="project-failed">Die Frist ist abgelaufen. Für diesen Auftrag gibt es keine Belohnung.</p>' : ''}${order.status === 'completed' && order.completionReward?.claimedAt ? '<p>Belohnung abgeholt.</p>' : ''}</div></article>`;
   }
   function renderExpeditionJobs() {
     const el = $('#expedition-jobs-content');
@@ -2415,7 +2566,7 @@
     if (!region?.endlessUnlocked || !expeditionRegionOpen(index)) return false;
     const stageRows = EXPEDITION_STAGE_WEIGHTS[index].map((chance, tier) => `<span>Stufe ${tier + 1}: ${money(chance * 100)} %</span>`).join(' · ');
     $('#expedition-draw-title').textContent = `${EXPEDITION_REGIONS[index]} · Endlosexpedition`;
-    $('#expedition-draw-content').innerHTML = `<p><strong>${integer(game.expedition.points)} / ${integer(expeditionCapacity())} Expeditionspunkte</strong></p><p>Jede Expedition kann eine Fahrzeugkarte dieser Region finden. Duplikate geben 1 Shard derselben Seltenheit.</p><div class="expedition-draw-chances">${EXPEDITION_CARD_CHANCES.map(item => { const card = EXPEDITION_CHARACTERS.find(c => c.region === index && c.rarity === item.rarity); return `<div><span>${card.name} · ${item.rarity}</span><strong>${money(item.chance * 100)} %</strong></div>`; }).join('')}${EXPEDITION_JOB_WEIGHTS.map(item => `<div><span>${expeditionJobLabel(item.kind)}</span><strong>${money(item.chance * 90)} %</strong></div>`).join('')}</div><p>Fahrzeugkartenaufträge geben Shards, aber keine weiteren Karten. Auftragsstufen: ${stageRows}. Sonder- und Empfehlungsfahrten behalten ihre Transportwerte.</p><button type="button" class="button button-primary" data-expedition-draw="${index}" ${game.expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Expedition starten · 5 Punkte</button><p>Erhaltene Aufträge bleiben gespeichert. Einen LKW weist du danach separat zu.</p>`;
+    $('#expedition-draw-content').innerHTML = `<p><strong>${integer(game.expedition.points)} / ${integer(expeditionCapacity())} Expeditionspunkte</strong></p><p>Jede Expedition kann eine Fahrzeugkarte dieser Region finden. Duplikate geben 1 Shard derselben Seltenheit.</p><div class="expedition-draw-chances">${EXPEDITION_CARD_CHANCES.map(item => { const card = EXPEDITION_CHARACTERS.find(c => c.region === index && c.rarity === item.rarity); return `<div><span>${card.name} · ${item.rarity}</span><strong>${money(item.chance * 100)} %</strong></div>`; }).join('')}${EXPEDITION_JOB_WEIGHTS.map(item => `<div><span>${expeditionJobLabel(item.kind)}</span><strong>${money(item.chance * 90)} %</strong></div>`).join('')}</div><p>Fahrzeugkartenaufträge geben Shards, aber keine weiteren Karten. Auftragsstufen: ${stageRows}. Sonderaufträge und Empfehlungsprojekte wachsen mit der Region und werden von einer Flottenvorlage gefahren.</p><button type="button" class="button button-primary" data-expedition-draw="${index}" ${game.expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Expedition starten · 5 Punkte</button><p>Gefundene Großaufträge erscheinen auch in den Vorräten und werden mit einer Flottenvorlage gestartet.</p>`;
     return true;
   }
   function openExpeditionDrawDialog(index) {
@@ -2425,8 +2576,9 @@
   function renderPersonnel() {
     const expedition = game.expedition;
     const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', coins: 'Expeditionsmünzen' };
-    $('#personnel-slots').innerHTML = expedition.seats.map((id, index) => `<div class="expedition-seat"><strong>Flottenplatz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id)?.name || 'Unbekannt' : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${index}">Entfernen</button>` : ''}</div>`).join('');
-    $('#personnel-slot-count').textContent = `${expedition.seats.filter(Boolean).length} / 5 Flottenplätze`;
+    const currentTemplate = fleetTemplate(selectedFleetTemplate);
+    $('#personnel-slots').innerHTML = `<div class="fleet-template-tabs">${[0, 1, 2].map(index => `<button type="button" class="button ${selectedFleetTemplate === index ? 'button-primary' : 'button-outline'}" data-fleet-template="${index}">Flotte ${index + 1} · ${fleetTemplate(index).filter(Boolean).length}/5</button>`).join('')}</div><p>Flotte 1 gibt die bisherigen Expeditionsboni. Für Großaufträge wählst du eine der drei Vorlagen. Expeditionstransporte fahren Fahrzeuge aus dem Fuhrpark.</p>` + currentTemplate.map((id, index) => `<div class="expedition-seat"><strong>Flottenplatz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id)?.name || 'Unbekannt' : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${selectedFleetTemplate}:${index}">Entfernen</button>` : ''}</div>`).join('');
+    $('#personnel-slot-count').textContent = `${currentTemplate.filter(Boolean).length} / 5 Flottenplätze`;
     $('#personnel-cards').innerHTML = EXPEDITION_CHARACTERS.map(c => {
       const card = expedition.characters[c.id];
       const model = TRUCKS[c.vehicleTier];
@@ -2439,7 +2591,7 @@
       const parked = cardInGarage(c.id);
       const truck = game.trucks.find(item => item.cardId === c.id);
       const busy = truck && (game.orders.some(order => order.status === 'active' && order.truckId === truck.id) || expedition.missions.some(mission => mission.status === 'active' && mission.truckId === truck.id));
-      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p>${vehicleData}<p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<button class="button button-primary" data-garage-${parked ? 'remove' : 'add'}="${c.id}" ${parked ? busy ? 'disabled' : '' : regularTruckCount() >= 10 ? 'disabled' : ''}>${parked ? 'Aus Fuhrpark nehmen' : 'In Fuhrpark einsetzen'}</button><div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Flottenplatz ${seat + 1}</button>`).join('')}</div></article>`;
+      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p>${vehicleData}<p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<button class="button button-primary" data-garage-${parked ? 'remove' : 'add'}="${c.id}" ${parked ? busy ? 'disabled' : '' : regularTruckCount() >= 10 ? 'disabled' : ''}>${parked ? 'Aus Fuhrpark nehmen' : 'In Fuhrpark einsetzen'}</button><div class="expedition-truck-choices">${currentTemplate.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${selectedFleetTemplate},${seat}" ${id === c.id ? 'disabled' : ''}>Flotte ${selectedFleetTemplate + 1} · Platz ${seat + 1}</button>`).join('')}</div></article>`;
     }).join('');
   }
   function renderCompany() {
@@ -2570,18 +2722,6 @@
     }).join('');
     $('#assign-dialog').showModal();
   }
-  function openCustomerTripDialog(kind) {
-    const order = game.orders.find(o => (selectedSpecialCustomer === 'referrals' ? o.kind === 'referral' : o.customer === selectedSpecialCustomer && o.kind === 'special') && o.kind === kind && o.status === 'queued');
-    if (!order) return;
-    $('#assign-title').textContent = `${kind === 'special' ? 'Sonderfahrt' : 'Empfehlungsfahrt'} ${order.id}`;
-    $('#assign-description').textContent = `${customerById(order.customer).name} · ${categoryById(order.category).label} · ${order.from} → ${order.to} · ${tons(order.volume)} t · ${order.distance} km je Strecke · ${routeTypeLabel(order)}. Wähle einen passenden freien LKW.`;
-    const trucks = eligibleFreeTrucks(order);
-    $('#assign-vehicles').innerHTML = trucks.length ? trucks.map(truck => {
-      const result = orderEconomics(order, truck);
-      return `<button type="button" class="assign-choice" data-choose-special="${truck.id}" data-order="${order.id}"><span class="assign-choice-top"><span><strong>${truck.symbol} ${truck.model} · ${truck.id}</strong><small>${tons(truck.capacity)} t pro Tour · ${result.trips} Touren · ${duration(orderDuration(order, truck))}</small></span><strong class="assign-choice-profit">${signedMoney(result.totalProfit)}</strong></span><span class="assign-choice-foot">Transportgewinn ${signedMoney(result.transportProfit)} · Auftragsprämie ${signedMoney(result.bonus)} · Fahrt zuweisen ↗</span></button>`;
-    }).join('') : '<p>Derzeit ist kein geeigneter LKW frei.</p>';
-    $('#assign-dialog').showModal();
-  }
   function openExpeditionJobDialog(region, jobId) {
     const job = game.expedition.jobs.find(item => item.id === jobId && item.region === region);
     if (!job || !game.expedition.regions[region]?.endlessUnlocked) return;
@@ -2621,9 +2761,10 @@
     if (target.dataset.upgradeRarity) upgradeTruckRarity(target.dataset.upgradeRarity);
     if (target.dataset.upgradeCapacity) upgradeTruckCapacity(target.dataset.upgradeCapacity);
     if (target.dataset.openSale) openSaleDialog(target.dataset.openSale);
-    if (target.dataset.specialCustomer) { selectedSpecialCustomer = target.dataset.specialCustomer; renderSpecialTrips(); }
-    if (target.dataset.specialBack !== undefined) { selectedSpecialCustomer = null; renderSpecialTrips(); }
-    if (target.dataset.startTrip) openCustomerTripDialog(target.dataset.startTrip);
+    if (target.dataset.projectOpen) { selectedProjectId = target.dataset.projectOpen; setView('special'); renderSpecialTrips(); }
+    if (target.dataset.projectBack !== undefined) { selectedProjectId = null; renderSpecialTrips(); }
+    if (target.dataset.projectStart) { const [id, template] = target.dataset.projectStart.split(':'); startFleetProject(id, Number(template)); }
+    if (target.dataset.projectOvertime) { const [id, amount] = target.dataset.projectOvertime.split(':'); spendOvertime(id, Number(amount)); }
     if (target.dataset.expeditionJobGroup) { selectedExpeditionJobGroup = target.dataset.expeditionJobGroup; renderExpeditionJobs(); }
     if (target.dataset.expeditionJobBack !== undefined) { selectedExpeditionJobGroup = null; renderExpeditionJobs(); }
     if (target.dataset.openExpeditionJob) {
@@ -2662,9 +2803,11 @@
     }
     if (target.dataset.characterSeat) {
       const [id, seat] = target.dataset.characterSeat.split(':');
-      assignCharacterSeat(id, Number(seat));
+      const [template, slot] = seat.split(',').map(Number);
+      assignCharacterSeat(id, slot, template);
     }
-    if (target.dataset.characterRemove !== undefined) { game.expedition.seats[Number(target.dataset.characterRemove)] = null; save(); render(); }
+    if (target.dataset.fleetTemplate !== undefined) { selectedFleetTemplate = Number(target.dataset.fleetTemplate); renderPersonnel(); }
+    if (target.dataset.characterRemove !== undefined) { const [template, seat] = target.dataset.characterRemove.split(':').map(Number); const slots = fleetTemplate(template); if (slots) { slots[seat] = null; save(); render(); } }
     if (target.dataset.characterShard) giveCharacterShard(target.dataset.characterShard);
     if (target.dataset.characterFill) giveCharacterShard(target.dataset.characterFill, true);
     if (target.dataset.shardCombine) combineExpeditionShards(target.dataset.shardCombine);
@@ -2672,7 +2815,6 @@
     if (target.dataset.pin) toggleOrderPin(target.dataset.pin);
     if (target.dataset.assign) openAssignDialog(target.dataset.assign);
     if (target.dataset.choose) assignOrder(target.dataset.order, target.dataset.choose);
-    if (target.dataset.chooseSpecial) assignCustomerTrip(target.dataset.order, target.dataset.chooseSpecial);
     if (target.dataset.choosePrivate) assignPrivatePickup(target.dataset.order, target.dataset.choosePrivate);
     if (target.dataset.chooseCrafted) assignCraftedOrder(target.dataset.order, target.dataset.chooseCrafted);
     if (target.dataset.claimOrder) claimOrderReward(target.dataset.claimOrder);
@@ -2730,9 +2872,11 @@
     $('#game-clock').textContent = new Date(now).toLocaleTimeString('de-DE');
     const refreshed = autoRefreshOrders(now);
     const tripsSettled = settleTrips(now);
+    const projectsSettled = settleFleetProjects(now);
+    const overtimeRegenerated = regenerateOvertime(now);
     const expeditionsSettled = settleExpeditions(now);
     settleHub(now);
-    if (tripsSettled || expeditionsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
+    if (tripsSettled || projectsSettled || overtimeRegenerated || expeditionsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
     maybeShowLevelUpDialog();
   }
   const requested = location.hash.slice(1);

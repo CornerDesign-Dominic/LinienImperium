@@ -21,7 +21,7 @@ const context = vm.createContext({
   Date, Math: math, Intl, Number, JSON, setTimeout, clearTimeout,
   document: { querySelector: element }
 });
-vm.runInContext(beforeEvents + '\n globalThis.api = { newGame, loadGame, createOrder, expeditionRegionOpen, expeditionRegionCompleted, discoverExpeditionPlace, drawExpeditionJob, startExpeditionMission, settleExpeditions, claimExpeditionMission, expeditionCapacity, freeTrucks, giveCharacterShard, assignCharacterSeat, addCardToGarage, combineExpeditionShards, renderExpeditions, renderExpeditionJobs, openExpeditionJobDialog, openExpeditionDrawDialog, renderCustomers, renderOrders, renderSpecialTrips, replenishOrders, assignCustomerTrip, setRegion: value => { selectedExpeditionRegion = value; selectedExpeditionNode = 7; }, setJobGroup: value => { selectedExpeditionJobGroup = value; }, setSpecialCustomer: value => { selectedSpecialCustomer = value; }, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
+vm.runInContext(beforeEvents + '\n globalThis.api = { newGame, loadGame, createOrder, expeditionRegionOpen, expeditionRegionCompleted, discoverExpeditionPlace, drawExpeditionJob, startExpeditionMission, startFleetProject, settleExpeditions, claimExpeditionMission, expeditionCapacity, freeTrucks, giveCharacterShard, assignCharacterSeat, addCardToGarage, combineExpeditionShards, renderExpeditions, renderExpeditionJobs, openExpeditionJobDialog, openExpeditionDrawDialog, renderCustomers, renderOrders, renderSpecialTrips, replenishOrders, setRegion: value => { selectedExpeditionRegion = value; selectedExpeditionNode = 7; }, setJobGroup: value => { selectedExpeditionJobGroup = value; }, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
 const api = context.api;
 api.mute();
 const state = api.newGame('hamburg');
@@ -82,7 +82,7 @@ api.renderCustomers();
 assert.match(element('#customer-list').innerHTML, /<h3>Nordbau GmbH<\/h3>/);
 assert.doesNotMatch(element('#customer-list').innerHTML, /Frischgut AG|Stahlwerk|Alpenhandel|Eurolog/);
 api.renderSpecialTrips();
-assert.match(element('#special-content').innerHTML, /Nordbau GmbH/);
+assert.match(element('#special-content').innerHTML, /Noch keine Großaufträge gefunden/);
 assert.equal(api.startExpeditionMission(0, 'final', 'KARTE-navigator'), false);
 assert.equal(api.discoverExpeditionPlace(1), true);
 const before = state.expedition.points;
@@ -127,12 +127,12 @@ assert.equal(state.expedition.jobs.length, 1);
 math.random = () => .96;
 assert.equal(api.drawExpeditionJob(0), 'special');
 assert.equal(state.orders.some(order => order.kind === 'special' && order.status === 'queued'), true);
-api.setSpecialCustomer('nordbau');
 api.renderSpecialTrips();
-assert.match(element('#special-content').innerHTML, /Sonderfahrt durchführen · 1 offen/);
+assert.match(element('#special-content').innerHTML, /Großauftrag Stadtversorgung/);
 const special = state.orders.find(order => order.kind === 'special' && order.status === 'queued');
 assert.equal(special.customer, 'nordbau');
-assert.equal(api.assignCustomerTrip(special.id, 'KARTE-navigator'), true);
+assert.equal(api.assignCharacterSeat('navigator', 0), true);
+assert.equal(api.startFleetProject(special.id, 0), true);
 assert.equal(special.status, 'active');
 math.random = () => .996;
 assert.equal(api.drawExpeditionJob(0), 'referral');

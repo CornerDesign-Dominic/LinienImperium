@@ -18,7 +18,7 @@ const context = vm.createContext({
   Date, Math: math, Intl, Number, JSON, setTimeout, clearTimeout,
   document: { querySelector: element }
 });
-vm.runInContext(beforeEvents + '\n globalThis.api = { RANK_GEAR_COSTS, GEAR_LOOT, newGame, loadGame, save, rankGearCost, truckRarity, upgradeTruckRarity, makeCompletionReward, applyOrderReward, settleTrips, renderSpecialTrips, setGame: value => { game = value; }, setCustomer: value => { selectedSpecialCustomer = value; }, mute: () => { render = () => {}; showToast = () => {}; replenishOrders = () => {}; } };\n})();', context);
+vm.runInContext(beforeEvents + '\n globalThis.api = { RANK_GEAR_COSTS, GEAR_LOOT, newGame, loadGame, save, rankGearCost, truckRarity, upgradeTruckRarity, makeCompletionReward, applyOrderReward, settleTrips, renderSpecialTrips, setGame: value => { game = value; }, mute: () => { render = () => {}; showToast = () => {}; replenishOrders = () => {}; } };\n})();', context);
 const api = context.api;
 api.mute();
 const state = api.newGame('hamburg');
@@ -105,15 +105,13 @@ api.setGame(migrated);
 assert.equal(api.applyOrderReward(migrated.orders[0]), true);
 assert.equal(migrated.inventory.gears.rare, 18);
 
-migrated.orders.push({ id: 'A-ref', ...order('national', 'referral', 'frischgut'), status: 'queued', completionReward: null });
+migrated.orders.push({ id: 'A-ref', ...order('national', 'referral', 'frischgut'), status: 'queued', projectName: 'Großprojekt Versorgungskette', projectRegion: 1, deadlineMs: 3 * 3600000, completionReward: null });
 migrated.expedition.regions[0].endlessUnlocked = true;
 migrated.expedition.regions[0].customerUnlocked = true;
-api.setCustomer(null);
 api.renderSpecialTrips();
 const overview = element('#special-content').innerHTML;
-assert.ok(overview.indexOf('Empfehlungsaufträge') < overview.indexOf('Nordbau GmbH'));
-assert.match(overview, /1 Empfehlungsfahrten offen/);
-api.setCustomer('referrals');
+assert.match(overview, /Großprojekt Versorgungskette/);
+assert.match(overview, /Frischgut AG/);
 api.renderSpecialTrips();
-assert.match(element('#special-content').innerHTML, /Empfehlungsfahrt durchführen · 1 offen/);
+assert.match(element('#special-content').innerHTML, /Empfehlungsprojekt/);
 console.log('gear costs, loot, claims, migration and referral list: OK');

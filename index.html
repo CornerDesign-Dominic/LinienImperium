@@ -16,7 +16,7 @@
       <nav class="nav" aria-label="Hauptnavigation">
         <button class="nav-link active" data-view="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
         <button class="nav-link" data-view="orders"><span class="nav-icon">▤</span> Aufträge <span class="nav-count" id="nav-order-count">0</span></button>
-        <button class="nav-link" data-view="special"><span class="nav-icon">✦</span> Sonderfahrten</button>
+        <button class="nav-link" data-view="special"><span class="nav-icon">✦</span> Großaufträge</button>
         <button class="nav-link" data-view="expedition-jobs"><span class="nav-icon">◇</span> Expeditionsaufträge</button>
         <button class="nav-link" data-view="fleet"><span class="nav-icon">▰</span> Fuhrpark</button>
         <button class="nav-link" data-view="dealer"><span class="nav-icon">🚚</span> Händler</button>
@@ -47,7 +47,7 @@
         </div>
 
         <div id="view-orders" class="view"><div class="page-heading"><div><h1>Aufträge<span class="heading-dot">.</span></h1><p id="held-offers-count">0 / 1 Aufträge gehalten</p></div><div class="refresh-controls"><div class="refresh-timer">Automatisch neue Angebote in <strong id="order-refresh-countdown">15:00</strong></div><button class="button button-primary" id="refresh-orders">↻ Neue Angebote · 50 M</button></div></div><div id="orders-list" class="orders-list"></div></div>
-        <div id="view-special" class="view"><div class="page-heading"><div><h1>Sonderfahrten<span class="heading-dot">.</span></h1><p>Gesammelte Fahrten bleiben erhalten, bis du sie einem LKW zuweist.</p></div></div><div id="special-content"></div></div>
+        <div id="view-special" class="view"><div class="page-heading"><div><h1>Großaufträge<span class="heading-dot">.</span></h1><p>Gesammelte Sonderaufträge und Empfehlungsprojekte fährt eine ausgewählte Flotte innerhalb einer festen Frist.</p></div></div><div id="special-content"></div></div>
 
         <div id="view-expedition-jobs" class="view"><div class="page-heading"><div><div class="eyebrow">AUSGELOSTE TRANSPORTE</div><h1>Expeditionsaufträge<span class="heading-dot">.</span></h1><p>Hier warten Fahrzeugkarten- und Materialaufträge auf einen freien LKW.</p></div><button type="button" class="button button-outline" data-go="expeditions">Zu Expeditionen</button></div><div id="expedition-jobs-content"></div></div>
 
@@ -90,7 +90,7 @@
 
         <div id="view-expeditions" class="view"><div class="page-heading"><div><div class="eyebrow">ERKUNDUNG UND TRANSPORTE</div><h1>Expeditionen<span class="heading-dot">.</span></h1><p>Entdecke sieben Orte je Region, öffne den Endlosort und erledige die einmaligen Transporte.</p></div></div><section id="expedition-status" class="panel expedition-status"></section><div id="expedition-regions"></div><section id="expedition-history-panel" class="panel"><h2>Letzte Ergebnisse</h2><div id="expedition-history"></div></section></div>
 
-        <div id="view-personnel" class="view"><div class="page-heading"><div><div class="eyebrow">DEINE FAHRZEUGKARTEN</div><h1>Flotte<span class="heading-dot">.</span></h1><p>Setze Karten für Boni in die Flotte und als fahrbare Fahrzeuge in den Fuhrpark ein. Jede Karte ist je Bereich höchstens einmal nutzbar.</p></div></div><section class="panel personnel-team"><div class="section-head"><h2>Aktive Flotte</h2><span id="personnel-slot-count" class="pill pill-gray">0 / 5 Flottenplätze</span></div><div id="personnel-slots" class="personnel-slots"></div></section><div class="company-section-heading"><h2>Fahrzeugkarten</h2></div><div id="personnel-cards" class="personnel-cards"></div></div>
+        <div id="view-personnel" class="view"><div class="page-heading"><div><div class="eyebrow">DEINE FAHRZEUGKARTEN</div><h1>Flotte<span class="heading-dot">.</span></h1><p>Stelle drei Flottenvorlagen aus Fahrzeugkarten zusammen. Flotte 1 gibt die bisherigen Expeditionsboni; für Großaufträge wählst du eine Vorlage.</p></div></div><section class="panel personnel-team"><div class="section-head"><h2>Aktive Flotte</h2><span id="personnel-slot-count" class="pill pill-gray">0 / 5 Flottenplätze</span></div><div id="personnel-slots" class="personnel-slots"></div></section><div class="company-section-heading"><h2>Fahrzeugkarten</h2></div><div id="personnel-cards" class="personnel-cards"></div></div>
 
         <div id="view-statistics" class="view"><div class="page-heading"><div><div class="eyebrow">DEINE BILANZ</div><h1>Statistiken<span class="heading-dot">.</span></h1><p>Alle Werte zählen seit Beginn dieses Spielstands.</p></div></div><div id="statistics-grid" class="statistics-grid"></div><section class="panel statistics-panel"><div class="section-head"><div><div class="eyebrow">MÜNZENBILANZ</div><h2>Wohin die Münzen fließen</h2></div></div><div id="finance-list"></div></section><div class="info-strip statistics-note"><span class="info-icon">i</span><span>CO₂ ist eine grobe Spielschätzung: beladene Tonnenkilometer × 52,75 g CO₂/tkm. Leere Rückfahrten werden bei dieser CO₂-Schätzung nicht berücksichtigt. <a href="https://climate-energy.eea.europa.eu/topics/transport/emissions-from-heavy-duty-vehicles/intro" target="_blank" rel="noopener noreferrer">EEA-Referenzwert</a>.</span></div></div>
 

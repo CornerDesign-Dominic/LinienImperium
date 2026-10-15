@@ -2,6 +2,8 @@
 
 Ein lokales Transportspiel im Browser. Du findest Fahrzeugkarten auf Expeditionen, setzt sie im Fuhrpark ein, weist Aufträge zu und baust deine Spedition aus. Stadttransporter für den Stadthub kaufst du beim Händler. Der Spielstand wird ausschließlich im Browser per `localStorage` gespeichert; Konten und ein Server sind noch nicht eingerichtet.
 
+Für Großaufträge stellst du bis zu drei Flottenvorlagen zusammen. Ihre Fahrzeuge liefern parallel; Überstundenpunkte helfen, Projekte vor Ablauf der Frist abzuschließen.
+
 ## Lokal starten
 
 Im Projektordner einen statischen Server starten:
