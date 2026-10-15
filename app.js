@@ -2671,6 +2671,101 @@
     renderCompany();
     $('#department-dialog').showModal();
   }
+  function pageHelp(view = currentView) {
+    const percent = value => `${money(value * 100)} %`;
+    const level = levelForXp(game.xp, game).level;
+    const projectTons = kind => `${kind === 'special' ? 400 : 1100} + Regionsindex × ${kind === 'special' ? 60 : 140} t`;
+    const projectKm = kind => `${kind === 'special' ? 120 : 240} + Regionsindex × ${kind === 'special' ? 25 : 40} km`;
+    const pages = {
+      dashboard: ['Dashboard', [
+        ['Spielerlevel', `<p>Transportierte Tonnen geben XP: <code>XP je Tour = gelieferte Tonnen × bezahlte Richtungen</code> (bei Dual Way also doppelt). Für den nächsten Aufstieg benötigt Level L bis Level 24 <code>100 × L XP</code>, danach <code>4 × L² XP</code>. Aktuell: Level ${level}, nächste Stufe nach ${integer(playerXpForNextLevel(level))} XP ab Beginn dieses Levels.</p><p>Je Aufstieg: sofort 50 Expeditionspunkte sowie 5 dauerhaft verteilbare Punkte für Expeditions- und Überstundenmaximum. Jeder verteilte Punkt füllt den entsprechenden Vorrat ebenfalls um 1.</p>`],
+        ['Münzen und Testknöpfe', `<p>Tourgewinn = Frachtvergütung − Fahrzeugkosten − Lastkosten. Abschlussprämien werden separat abgeholt. Der Testknopf schreibt ${integer(TEST_COINS_GRANT)} M gut; „Spielstand zurücksetzen“ beginnt einen neuen lokalen Spielstand.</p>`],
+        ['Automatischer Fortschritt', '<p>Aufträge, Projekte und Expeditionen laufen nach Uhrzeit weiter. Beim erneuten Öffnen werden fällige Touren und Belohnungen nachberechnet. Der Spielstand liegt im Browser.</p>']
+      ]],
+      orders: ['Aufträge', [
+        ['Angebote und Chancen', `<p>${BASE_OFFERS} Angebote zu Beginn, mit Disposition höchstens ${BASE_OFFERS + MAX_OFFER_LEVEL}. Jedes neue Angebot ist mit ${percent(1 - INTERNATIONAL_OFFER_CHANCE)} Regionalverkehr oder ${percent(INTERNATIONAL_OFFER_CHANCE)} Fernverkehr. Pro Angebot gibt es ${percent(CUSTOMER_OFFER_CHANCE)} Grundchance auf einen freigeschalteten Stammkunden des Segments. Fahrart: ${percent(1 - DUAL_WAY_CHANCE)} Single Way, ${percent(DUAL_WAY_CHANCE)} Dual Way.</p>`],
+        ['Transportrechnung', `<p><code>Fracht = gelieferte t × einfache km × ${rateMoney(FREIGHT_PAY_PER_TON_KM)} M/tkm × bezahlte Richtungen</code>. Single Way bezahlt nur die Hinfahrt; Dual Way beide Richtungen. <code>Lastkosten = gelieferte t × einfache km × ${rateMoney(LOAD_COST_PER_TON_KM)} M/tkm × bezahlte Richtungen</code>. Fahrzeugkosten = gefahrene km einschließlich Rückfahrt × Betriebskosten des Fahrzeugs je km.</p><p>Abschlussprämie = Auftragsvolumen × bezahlte Richtungen × ${rateMoney(BASE_COMPLETION_PREMIUM_PER_TON)} M/t × (1 + Firmenprämienbonus). Sie wird nach Abschluss abgeholt.</p>`],
+        ['Zeit, Aktualisierung und Halten', `<p>Tourzeit = Strecke / Tempo beladen + Rückweg / Tempo leer; bei Dual Way ist auch der Rückweg beladen. Alle ${AUTO_REFRESH_MS / 60000} Minuten kommen automatisch neue Angebote. Manuell kostet der Wechsel <code>${MANUAL_REFRESH_BASE_COST} M × max(1, eigene Fahrzeuge) × (1 + manuelle Wechsel seit dem letzten automatischen Wechsel)</code>. ${pinLimit()} Angebot(e) können derzeit gehalten werden; gehaltene Angebote überstehen beide Wechselarten.</p>`]
+      ]],
+      special: ['Großaufträge', [
+        ['Fund und Umfang', `<p>Normale Stammkundenaufträge finden einen Sonderauftrag mit ${percent(SPECIAL_CHANCES.national.award)} im Regionalverkehr oder ${percent(SPECIAL_CHANCES.international.award)} im Fernverkehr, jeweils plus Kundenfähigkeit. Expeditionen geben absolut ${percent(EXPEDITION_JOB_WEIGHTS[2].chance * .9)} Sonderaufträge und ${percent(EXPEDITION_JOB_WEIGHTS[3].chance * .9)} Empfehlungsprojekte pro Auslosung. Umfang Sonderauftrag: <code>${projectTons('special')}</code>, <code>${projectKm('special')}</code>; Empfehlungsprojekt: <code>${projectTons('referral')}</code>, <code>${projectKm('referral')}</code>. Der Regionsindex ist 0 bis 4.</p>`],
+        ['Frist und Flotte', `<p>Sonderauftrag: ${PROJECT_DEADLINES.special / 60000} Minuten Frist. Empfehlungsprojekt: ${PROJECT_DEADLINES.referral / 3600000} Stunden. Eine der drei Flottenvorlagen fährt mit 1 bis 5 Karten; jedes Fahrzeug hat eigene Nutzlast und eigenes Tempo. Die Prognose simuliert alle noch nötigen Touren. Eine Karte darf parallel in mehreren Projekten und im Fuhrpark fahren. Bei Fristablauf ohne vollständige Lieferung scheitert der Auftrag ohne Abschlussbelohnung.</p>`],
+        ['Überstunden und Beute', `<p>Überstunden: 1, 5 oder 10 Punkte je Klick. Pro Punkt werden sofort 10 t geliefert; unabhängig je Punkt besteht ${percent(.01)} Chance auf 1 t zusätzlich. Regeneration: 1 Punkt je ${OVERTIME_REGEN_MS / 60000} Minuten bis zum persönlichen Maximum. Nach erfolgreichem Abschluss wird die Belohnung abgeholt. Modulchance: Sonderauftrag ${percent(SPECIAL_CHANCES.national.module)} regional / ${percent(SPECIAL_CHANCES.international.module)} fern; Empfehlungsprojekt ${percent(SPECIAL_CHANCES.national.referralModule)} / ${percent(SPECIAL_CHANCES.international.referralModule)}. Erfolgreiche Sonderaufträge finden zusätzlich mit ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)} plus Kundenfähigkeit ein Empfehlungsprojekt.</p>`]
+      ]],
+      'expedition-jobs': ['Expeditionsaufträge', [
+        ['Fund und Stufen', `<p>Bei jeder Endlosexpedition entfallen absolut ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)} auf einen Fahrzeugkartenauftrag und ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)} auf einen Materialauftrag. Stufe 1/2/3 transportiert ${EXPEDITION_JOB_TONS_PER_TIER}/${EXPEDITION_JOB_TONS_PER_TIER * 2}/${EXPEDITION_JOB_TONS_PER_TIER * 3} t. Die Stufenverteilung hängt von der Region ab; Region 5: ${EXPEDITION_STAGE_WEIGHTS[4].map(percent).join(' / ')}.</p>`],
+        ['Touren und Beute', `<p>Ein freies geeignetes Fuhrparkfahrzeug fährt je Tour ${EXPEDITION_JOB_DISTANCE} km beladen hin und ${EXPEDITION_JOB_DISTANCE} km leer zurück. Touren = aufrunden(Restvolumen / Nutzlast), die letzte Tour kann kleiner sein. Fahrzeugkartenaufträge geben 2 garantierte Shards und mit ${percent(.2)} plus Flottenbonus einen weiteren. Materialaufträge geben mit ${percent(.2)} Shards, ${percent(.003)} ein Kapazitätsmodul und ${percent(COMPANY_BALANCE.materialItemChance)} Firmenausbau-Items.</p>`]
+      ]],
+      fleet: ['Fuhrpark', [
+        ['Plätze und Fahrzeuge', `<p>${dispatchCapacity()} Plätze für Kartenfahrzeuge; jede gefundene Karte kann einmal eingesetzt werden. Sie kann zugleich in einer Flottenvorlage stehen. Der Händler verkauft nur Stadttransporter. Geeignete Klassen: Regionalverkehr 7,5-Tonner, 18-Tonner und 26-Tonner; Fernverkehr Sattelzug, 26-Tonner und 40-t-Tautliner.</p>`],
+        ['Tempo und Ausbauten', `<p><code>Tempo = ${SPEED_KM_PER_SECOND} km/s × (1 + ${RARITY_SPEED_PER_LEVEL} × Rangstufen) × (1 − ${SPEED_LOSS_PER_TON} × geladene t)</code>. Jede Rangstufe bringt 0,5 % auf das Basistempo; maximal ${MAX_RARITY_LEVEL} Stufen. 1 Kapazitätsmodul bringt ${tons(CAPACITY_PER_MODULE)} t innerhalb der Modellgrenze. Die Werkstatt senkt die Fahrzeugkosten um 0,001 M/km je Stufe.</p>`],
+        ['Einsetzen und Herausnehmen', '<p>Eine Karte bleibt in deiner Sammlung. Beim Herausnehmen bleiben Rang, Kapazität und Fahrstatistik erhalten. Karten mit laufendem normalen Auftrag oder Expeditionsauftrag können erst danach herausgenommen werden. Großaufträge nutzen eine Momentaufnahme der Kartenwerte beim Start.</p>']
+      ]],
+      dealer: ['Händler', [
+        ['Kauf und Limit', `<p>Es werden nur Sprinter (${money(TRUCKS[0].price)} M, ${tons(TRUCKS[0].capacity)} t) und 3,5-Tonner (${money(TRUCKS[1].price)} M, ${tons(TRUCKS[1].capacity)} t) für den Stadthub verkauft. Vor dem Kauf muss der Stadthub eröffnet sein. Stadtfahrzeuglimit = <code>max(1, abrunden(Spielerlevel × 0,75))</code>; aktuell ${hubCapacity()}.</p>`],
+        ['Betrieb', `<p>Leerfahrt-Betriebskosten: Sprinter ${rateMoney(TRUCKS[0].emptyCostPerKm)} M/km, 3,5-Tonner ${rateMoney(TRUCKS[1].emptyCostPerKm)} M/km, abzüglich Werkstattbonus. Beide fahren mit der allgemeinen Tempoformel und können Kapazitätsmodule und Zahnräder nutzen. Regionale und ferne Fahrzeuge findest du als Karten auf Expeditionen.</p>`]
+      ]],
+      hub: ['Stadthub', [
+        ['Zyklus und Leistung', `<p>Eröffnung: ${HUB_PRICE} M. Ein Zyklus dauert ${HUB_CYCLE_MS / 60000} Minuten: ${HUB_WORK_SECONDS / 60} Minuten Fahrten, ${HUB_CYCLE_MS / 60000 - HUB_WORK_SECONDS / 60} Minuten Pause. Eine Fahrzeugtour fährt ${HUB_ROUTE_KM} km beladen und ${HUB_ROUTE_KM} km leer. Stündliche Kapazität = Summe je Fahrzeug aus <code>abrunden(${HUB_WORK_SECONDS} Sekunden / Tourdauer) × Nutzlast</code>.</p>`],
+        ['Einkauf und Kasse', `<p>Der Vertrieb kauft ${hubSalesPercent(hub()?.salesLevel || 0)} % der möglichen Stundenmenge (Basis 75 %, +1 Prozentpunkt je Stufe bis 100 %). Pro verkaufter Tonne: ${rateMoney(HUB_SALE_PER_TON)} M Verkauf − ${rateMoney(HUB_PURCHASE_PER_TON)} M Einkauf. Pro Arbeitsstunde fallen 8–12 Abholhinweise an. Nach ${HUB_CASHBOX_CYCLES} nicht abgeholten Zyklen ist die Kasse voll.</p>`],
+        ['Ausbau', `<p>Nächste Vertriebsstufe N kostet <code>5 × N Lieferantenkontakte</code>, <code>1 + abrunden((N−1)/25) Firmenausbau-Items</code> und <code>500 + 50 × N M</code>. Bauzeit = <code>12 × N Stunden</code>; maximale Stufe ${HUB_MAX_SALES_LEVEL}.</p>`]
+      ]],
+      inventory: ['Vorräte', [
+        ['Was hier liegt', '<p>Zahnräder verbessern Fahrzeugränge; Kapazitätsmodule erhöhen Nutzlast. Abholhinweise werden zu Privatabholungen verarbeitet, Lieferantenkontakte bauen den Stadthub aus. Firmenausbau-Items dienen Firmenausbauten und Kundenaufträgen. Gefundene Großaufträge bleiben hier bis zum Start als Einträge sichtbar.</p>'],
+        ['Erzeugung und Zufall', `<p>Für je ${integer(COMPANY_BALANCE.tkmPerItem)} tatsächlich beladene Tonnenkilometer normaler Regional- und Fernaufträge entsteht 1 Firmenausbau-Item; der Restzähler bleibt erhalten. Material-Expeditionsaufträge geben mit ${percent(COMPANY_BALANCE.materialItemChance)} zusätzlich 1/2/3 Items nach Auftragsstufe und mit ${percent(.003)} ein Kapazitätsmodul. Stadt-Hub-Zyklen erzeugen 8–12 Abholhinweise.</p>`],
+        ['Zahnradloot', '<p>Je 100 tkm: Common 40 % für 1 und weitere 20 % für 2 Zahnräder. Je 1.000 tkm: Uncommon 18 % für 1 und weitere 7 % für 2. Bei Kundenaufträgen: Rare 8 % für 1. Teilblöcke werden anteilig ausgewürfelt. Sonder- und Empfehlungsprojekte können zusätzlich Epic oder Legendär geben.</p>']
+      ]],
+      development: ['Entwicklung', [
+        ['Herstellung', `<p>${PRIVATE_PICKUP_HINT_COST} Abholhinweise ergeben eine Privatabholung. ${COMPANY_BALANCE.craftedOrderItems} Firmenausbau-Items ergeben einen Kundenauftrag für einen zufälligen freigeschalteten Stammkunden. Beide Aufträge bleiben in den Vorräten, bis ein passendes Fuhrparkfahrzeug zugewiesen wird.</p>`],
+        ['Shards', `<p>${SHARD_COMBINE_RATIO} Shards einer Seltenheit werden zu 1 Shard der nächsten. Common → Uncommon → Rare. Fahrzeugkarten steigen durch Shards ihrer Seltenheit bis Level 10 auf; Kosten je Stufe: ${CHARACTER_LEVEL_COSTS.join(', ')} Shards.</p>`]
+      ]],
+      company: ['Firma', [
+        ['Abteilungen', `<p>Disposition, Werkstatt und Vertrieb kosten je ${money(DISPATCH_UNLOCK_PRICE)} M zur Freischaltung. Disposition: <code>${BASE_OFFERS} + Stufe</code> verfügbare Angebote bis ${BASE_OFFERS + MAX_OFFER_LEVEL}; nächste Stufe kostet <code>500 × neue Stufe M</code> plus Items. Werkstatt: −0,001 M/km je Stufe bis ${MAX_WORKSHOP_LEVEL}; Kosten <code>100 × aufrunden(neue Stufe/5) M</code> plus Items. Vertrieb: <code>1 + Stufe</code> haltbare Aufträge bis ${1 + MAX_SALES_LEVEL}; nächste Stufe kostet <code>500 × neue Stufe M</code> plus Items.</p>`],
+        ['Transportsegmente', '<p>Prämienausbau gibt +1 Prozentpunkt auf die einmalige Abschlussprämie je Stufe. Mengenausbau: Maximum +1 t je Stufe, Minimum +1 t je zwei Stufen. Reichweitenstufe erweitert die obere Routengrenze um 1 km. Kosten für neue Stufe N: 2 + abrunden((N−1)/10) Items; Münzen Prämie 10×N², Menge 50×N², Reichweite 100×N².</p>']
+      ]],
+      expeditions: ['Expeditionen', [
+        ['Punkte und Freischaltung', `<p>Start: ${EXPEDITION_COST * 10} Expeditionspunkte. 1 Punkt regeneriert je ${EXPEDITION_REGEN_MS / 60000} Minuten, beeinflusst durch Flotte 1. Eine Endlosexpedition kostet ${EXPEDITION_COST} Punkte. Ort 1–7 einer Region kostet <code>3 + 9 × Regionsindex + abrunden(Ortsindex/2)</code> Punkte. Region und Endlosort öffnen nach dem 7. Ort der vorherigen Region.</p>`],
+        ['Fundchancen je Auslosung', `<p>Genau eine der drei regionalen Karten: Common ${percent(EXPEDITION_CARD_CHANCES[0].chance)}, Uncommon ${percent(EXPEDITION_CARD_CHANCES[1].chance)}, Rare ${percent(EXPEDITION_CARD_CHANCES[2].chance)}. Die übrigen ${percent(1 - EXPEDITION_CARD_CHANCES.reduce((sum, item) => sum + item.chance, 0))}: Fahrzeugkartenauftrag ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)}, Materialauftrag ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)}, Sonderauftrag ${percent(EXPEDITION_JOB_WEIGHTS[2].chance * .9)}, Empfehlungsprojekt ${percent(EXPEDITION_JOB_WEIGHTS[3].chance * .9)}. Duplikate geben 1 Shard der Karten-Seltenheit.</p>`],
+        ['Missionen', '<p>Jeder der sieben Orte hat eine einmalige Kapazitätsmission (+1 maximale Expeditionskapazität nach Abholung). Das Freilegen des Endlosorts gibt 1 Modul; sein einmaliger Auftrag schaltet nach Abholung den regionalen Stammkunden frei. Fahrzeuge für diese Transporte kommen aus dem Fuhrpark.</p>']
+      ]],
+      personnel: ['Flotte', [
+        ['Vorlagen und Boni', '<p>Es gibt drei Vorlagen mit je fünf Plätzen. Eine Karte darf je Vorlage einmal eingesetzt werden und zusätzlich im Fuhrpark stehen. Flotte 1 bestimmt die bisherigen Boni für Expeditionsregeneration, Punktemaximum, Zusatz-Shards, kürzere Missionen und Expeditionsmünzen. Für Großaufträge wählst du beim Start eine der drei Vorlagen; eine Karte genügt. Dieselbe Vorlage darf mehrere Projekte parallel fahren.</p>'],
+        ['Kartenwerte', `<p>Jede Region bietet Common ${percent(EXPEDITION_CARD_CHANCES[0].chance)}, Uncommon ${percent(EXPEDITION_CARD_CHANCES[1].chance)} und Rare ${percent(EXPEDITION_CARD_CHANCES[2].chance)} je Endlosexpedition. Kartenlevel 1–10; Shardkosten: ${CHARACTER_LEVEL_COSTS.join(', ')}. Bonus einer eingesetzten Karte = <code>Grundwert + (Kartenlevel − 1) × Stufenschritt</code>. Als Fahrzeug gelten die Modell-Nutzlast, der Fahrzeugrang und die Tempoformel.</p>`]
+      ]],
+      statistics: ['Statistiken', [
+        ['Transportwerte', `<p>Gelieferte Tonnen zählen pro bezahlter Richtung: Dual Way zählt Hin- und Rückfracht. Gefahrene Kilometer enthalten auch leere Rückfahrten. Tonnenkilometer = gelieferte t × einfache km × bezahlte Richtungen. CO₂ ist eine Schätzung: <code>beladene tkm × ${money(CO2_KG_PER_TON_KM * 1000)} g/tkm</code>; leere Fahrten fehlen darin.</p>`],
+        ['Münzenbilanz', '<p>Transportgewinn = gebuchte Frachtumsätze − Fahrzeug- und Lastkosten. Abgeholte Auftragsprämien und Expeditionsmünzen werden separat gezählt. Käufe, Ausbauten und Testmünzen stehen als eigene Posten in der Bilanz.</p>']
+      ]],
+      customers: ['Stammdaten', [
+        ['Freischaltung und Vertrauen', `<p>Ein Kunde wird durch den einmaligen Endlosort-Auftrag seiner Region freigeschaltet. Normale Aufträge geben ${TRUST_REWARDS.normal}, Sonderaufträge ${TRUST_REWARDS.special} und Empfehlungsprojekte ${TRUST_REWARDS.referral} Vertrauen. Für Kundenlevel L sind insgesamt <code>110 × L + 5 × L × (L − 1)</code> Vertrauen nötig, maximal Level ${MAX_TRUST_LEVEL}. Jeder Aufstieg gibt 1 verteilbaren Fähigkeitspunkt.</p>`],
+        ['Kundenfähigkeiten', `<p>Vergütung: +0,1 % Frachtvergütung je Punkt (max. ${CUSTOMER_SKILL_LIMITS.pay}). Sonderauftragchance: +0,1 Prozentpunkt je Punkt (max. ${CUSTOMER_SKILL_LIMITS.special}) auf die Basis ${percent(SPECIAL_CHANCES.national.award)} regional / ${percent(SPECIAL_CHANCES.international.award)} fern. Empfehlungschance: +0,1 Prozentpunkt je Punkt (max. ${CUSTOMER_SKILL_LIMITS.referral}) auf die Basis ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)}. Die Zuteilung bleibt bestehen.</p>`]
+      ]]
+    };
+    const sourceNames = {
+      dashboard: 'playerXpForNextLevel, TEST_COINS_GRANT',
+      orders: 'BASE_OFFERS, INTERNATIONAL_OFFER_CHANCE, CUSTOMER_OFFER_CHANCE, tourEconomics, manualRefreshCost',
+      special: 'PROJECT_DEADLINES, OVERTIME_REGEN_MS, queueCustomerTrip, spendOvertime, settleFleetProjects',
+      'expedition-jobs': 'EXPEDITION_JOB_WEIGHTS, EXPEDITION_JOB_TONS_PER_TIER, expeditionTransportPlan, awardExpeditionLoot',
+      fleet: 'TRUCKS, CATEGORIES, truckSpeed, upgradeTruckCapacity, RANK_GEAR_COSTS',
+      dealer: 'TRUCKS, hubCapacity, buyTruck',
+      hub: 'HUB_CYCLE_MS, HUB_WORK_SECONDS, HUB_ROUTE_KM, hubHourlyCapacity, hubSalesPercent',
+      inventory: 'COMPANY_BALANCE, rollGearLoot, awardExpeditionLoot',
+      development: 'PRIVATE_PICKUP_HINT_COST, SHARD_COMBINE_RATIO, CHARACTER_LEVEL_COSTS',
+      company: 'DEPARTMENTS, TRANSPORT_UPGRADE_LIMITS, COMPANY_BALANCE, transportRules',
+      expeditions: 'EXPEDITION_CARD_CHANCES, EXPEDITION_JOB_WEIGHTS, EXPEDITION_STAGE_WEIGHTS, expeditionDuration',
+      personnel: 'EXPEDITION_CHARACTERS, CHARACTER_LEVEL_COSTS, expeditionBonus',
+      statistics: 'CO2_KG_PER_TON_KM, tourEconomics, renderStatistics',
+      customers: 'SPECIAL_CHANCES, TRUST_REWARDS, CUSTOMER_SKILL_LIMITS, trustTotalForLevel'
+    };
+    const page = pages[view];
+    return page ? [page[0], [...page[1], ['Werte im Code ändern', `<p>Die zugehörigen Konstanten und Funktionen stehen in <code>app.js</code>: <code>${sourceNames[view]}</code>.</p>`]]] : ['Spielregeln', [['Hilfe', '<p>Für diese Seite liegen noch keine Regeln vor.</p>']]];
+  }
+  function openPageHelp() {
+    const [title, sections] = pageHelp();
+    $('#page-help-title').textContent = `${title}: Regeln und Berechnungen`;
+    $('#page-help-content').innerHTML = sections.map(([heading, content]) => `<section class="page-help-section"><h3>${heading}</h3>${content}</section>`).join('');
+    $('#page-help-dialog').showModal();
+  }
   function render() {
     renderStats();
     if (currentView === 'dashboard') renderDashboard();
@@ -2832,6 +2927,8 @@
   });
   $('#close-truck-dialog').addEventListener('click', () => $('#truck-dialog').close());
   $('#close-expedition-draw').addEventListener('click', () => $('#expedition-draw-dialog').close());
+  $('#page-help-button').addEventListener('click', openPageHelp);
+  $('#close-page-help').addEventListener('click', () => $('#page-help-dialog').close());
   $('#level-up-dialog').addEventListener('cancel', event => event.preventDefault());
   $('#confirm-level-up').addEventListener('click', confirmLevelUpAllocation);
   $('#truck-dialog').addEventListener('close', () => { selectedTruckId = null; });

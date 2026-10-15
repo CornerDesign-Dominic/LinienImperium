@@ -4,6 +4,8 @@ Ein lokales Transportspiel im Browser. Du findest Fahrzeugkarten auf Expeditione
 
 Für Großaufträge stellst du bis zu drei Flottenvorlagen zusammen. Ihre Fahrzeuge liefern parallel; Überstundenpunkte helfen, Projekte vor Ablauf der Frist abzuschließen.
 
+Das Fragezeichen oben rechts öffnet auf jeder Spielseite die zugehörigen Regeln, Chancen, Formeln und die Stellen für Anpassungen in `app.js`.
+
 ## Lokal starten
 
 Im Projektordner einen statischen Server starten:
