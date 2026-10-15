@@ -4,7 +4,7 @@ Diese Datei beschreibt die **aktuell implementierten Werte und Freischaltungen**
 
 ## 1. Start und Ablauf
 
-- Vor einem neuen Spielstand wählt der Spieler **einen festen Hauptsitz**. Danach beginnt er auf **Spielerlevel 1** mit **1.000 M Startguthaben**, zwei kostenlosen **4-t-7,5-Tonnern** (LKW-01 und LKW-02, jeweils 0 km und Common 0 ★) und fünf gemischten Angeboten. Der erste selbst gekaufte LKW erhält die Nummer 03. Den Stadthub eröffnet man kostenlos; anschließend kann der erste Stadttransporter gekauft werden. Bestehende Spielstände behalten Guthaben, Fahrzeuge und laufende Aufträge und erhalten keinen zusätzlichen Starter-LKW.
+- Vor einem neuen Spielstand wählt der Spieler **einen festen Hauptsitz**. Danach beginnt er auf **Spielerlevel 1** mit **1.000 M Startguthaben**, einer kostenlosen **Kurierwagen-Fahrzeugkarte** (4 t, Common 0 ★), die bereits im Fuhrpark eingesetzt ist, und fünf gemischten Angeboten. Weitere Karten werden auf Expeditionen gefunden. Den Stadthub eröffnet man kostenlos; anschließend kann der erste Stadttransporter gekauft werden. Bestehende Spielstände behalten Guthaben, Fahrzeuge und laufende Aufträge und erhalten keinen zusätzlichen Starter-LKW.
 - Auf dem Dashboard gibt es vorübergehend den Knopf **„+50.000 M (Test)“**. Jeder Klick schreibt dem aktuellen Spielstand 50.000 M gut. Die Gutschrift bleibt nach dem Neuladen erhalten und wird in der Münzenbilanz getrennt vom Transportertrag als „Testmünzen“ ausgewiesen.
 - Ein freier LKW kann genau einen verfügbaren Auftrag übernehmen. Ein Auftrag hat genau einen zugewiesenen LKW.
 - Pro Tour transportiert der LKW höchstens seine aktuelle Kapazität. Die nötigen Touren sind `aufrunden(Restvolumen / Kapazität)`.
@@ -49,21 +49,21 @@ Bereits erreichte Level aus älteren Spielständen bleiben bei der Umstellung al
 
 Aufträge im Regionalverkehr und Fernverkehr sind von Anfang an verfügbar. Stammkunden werden erst nach Abschluss und Abholung des einmaligen Transportauftrags am Endlosort ihrer Region freigeschaltet. Bis dahin erscheinen sie nicht in den Stammdaten und ihre regulären Aufträge werden nicht angeboten.
 
-## 3. LKW und erlaubte Auftragsarten
+## 3. Fuhrpark und erlaubte Auftragsarten
 
-| LKW | Grundkapazität | Fahrzeugpreis je km | Kaufpreis | Erlaubte Aufträge |
-| --- | ---: | ---: | ---: | --- |
+| Fahrzeugmodell | Grundkapazität | Betriebskosten je km | Erwerb | Erlaubte Aufträge |
+| --- | ---: | ---: | --- | --- |
 | Sprinter | 1 t | 0,20 M | 4.000 M | Stadthub |
 | 3,5-Tonner | 1,5 t | 0,50 M | 20.000 M | Stadthub |
-| 7,5-Tonner | 4 t | 0,65 M | 25.000 M | Regionalverkehr |
-| 18-Tonner | 8,5 t | 0,70 M | 100.000 M | Nur Regionalverkehr |
-| 26-Tonner | 13 t | 1,05 M (vorläufig) | 250.000 M | Regionalverkehr und Fernverkehr |
-| Sattelzug | 18 t | 1,60 M | 500.000 M | Nur Fernverkehr |
-| 40-t-Tautliner | 24 t | 2,10 M (vorläufig) | 1.000.000 M | Nur Fernverkehr |
+| 7,5-Tonner | 4 t | 0,65 M | Fahrzeugkarte | Regionalverkehr |
+| 18-Tonner | 8,5 t | 0,70 M | Fahrzeugkarte | Nur Regionalverkehr |
+| 26-Tonner | 13 t | 1,05 M (vorläufig) | Fahrzeugkarte | Regionalverkehr und Fernverkehr |
+| Sattelzug | 18 t | 1,60 M | Fahrzeugkarte | Nur Fernverkehr |
+| 40-t-Tautliner | 24 t | 2,10 M (vorläufig) | Fahrzeugkarte | Nur Fernverkehr |
 
-Die Modellnamen bezeichnen gängige Fahrzeugtypen; die angegebene Grundkapazität ist die im Spiel transportierbare Nutzlast. Die Auftragsart wird anhand der **Fahrzeugklasse** geprüft. Die Kapazität ist je Fahrzeugklasse fest. Alle Fahrzeugtypen und Auftragsarten sind unabhängig vom Spielerlevel verfügbar. Für einen Kauf sind genügend Münzen und ein freier LKW-Platz erforderlich; für die Zuweisung ein geeigneter freier LKW.
+Die Modellnamen bezeichnen Fahrzeugklassen; die angegebene Grundkapazität ist die transportierbare Nutzlast. Jede der 15 Fahrzeugkarten verwendet eine dieser fünf Regional- und Fernverkehrsklassen. Damit gelten die bisherigen Kapazitäten, Auftragsarten, Betriebskosten und die Basisgeschwindigkeit von 1 km/s. Karten werden auf Expeditionen gefunden und aus der Kartensammlung manuell in den Fuhrpark eingesetzt. Nur Sprinter und 3,5-Tonner für den Stadthub werden noch beim Händler gekauft. Für die Zuweisung braucht es ein geeignetes freies Fahrzeug.
 
-Die Seite **Garage** zeigt zwei Tabellen übereinander: oben reguläre LKW für Regionalverkehr und Fernverkehr, darunter Sprinter und 3,5-Tonner für den Stadthub. Bei laufenden Aufträgen zählt dort die Restzeit bis zum Abschluss des gesamten Auftrags herunter. Ein Klick auf eine Fahrzeugzeile öffnet die Details mit Auftrag, Status und Fahrzeugrang. Der **Händler** zeigt zwei Bereiche: Stadttransporter (Sprinter und 3,5-Tonner) sowie Langstreckentransporter nach Grundkapazität geordnet (7,5-Tonner, 18-Tonner, 26-Tonner, Sattelzug und 40-t-Tautliner).
+Der **Fuhrpark** hat zehn Plätze für Kartenfahrzeuge. Eine Karte kann dort höchstens einmal stehen und gleichzeitig einmal in der **Flotte** einen Bonus geben. Die Fuhrparkfahrzeuge erledigen normale Aufträge, Kundenaufträge und Expeditionsaufträge einschließlich Materialtransporten. Freie Karten können wieder herausgenommen werden; ihre Ausbaustufen, Zahnradränge und Fahrstatistik bleiben erhalten. Laufende Aufträge sperren das Herausnehmen. Die Fuhrparkseite zeigt außerdem die Stadttransporter. Im Händler werden nur Sprinter und 3,5-Tonner angeboten.
 
 ### Fahrzeugstufen und Seltenheit
 
@@ -87,11 +87,11 @@ Beim Wechsel in die nächste Seltenheit beginnt deren angezeigte Stufe wieder be
 | Epic | 5, 10, 10, 10, 15, 15, 15, 20, 20, 25 | 145 |
 | Legendär | 1, 2, 2, 2, 3, 3, 3, 4, 4, 5 | 29 |
 
-Für reguläre LKW stehen auf Level 1 **5 globale Kaufplätze** bereit. Auf Level 5, 10, 15 und jedem weiteren durch 5 teilbaren Level kommt ein Platz hinzu: `5 + abrunden(Spielerlevel / 5)`, ohne Obergrenze. Auf Level 25 sind es **10 Plätze**, auf Level 100 **25 Plätze**. Stadttransporter haben ein getrenntes Limit von `max(1, abrunden(Spielerlevel × 0,75))`; auf Level 100 sind es **75**. Vorhandene Fahrzeuge aus alten Spielständen bleiben erhalten. Die **Disposition erweitert die gemeinsame Auftragsbörse**.
+Für Kartenfahrzeuge stehen dauerhaft **10 Fuhrparkplätze** bereit. Stadttransporter haben ein getrenntes Limit von `max(1, abrunden(Spielerlevel × 0,75))`; auf Level 100 sind es **75**. Die **Disposition erweitert die gemeinsame Auftragsbörse**.
 
 ### Tempo und Kapazitätsmodule
 
-Tempo kann nicht manuell ausgebaut werden; nur der Fahrzeugrang erhöht das Basistempo. Jede neue Kapazitätsstufe kostet **genau 1 Kapazitätsmodul** und bringt **+0,5 t**. Die fahrzeugspezifischen Grenzen stehen unten. Module liegen in den Vorräten und werden in der Garage verbraucht; ein direkter Münzkauf ist nicht möglich.
+Tempo kann nicht manuell ausgebaut werden; nur der Fahrzeugrang erhöht das Basistempo. Jede neue Kapazitätsstufe kostet **genau 1 Kapazitätsmodul** und bringt **+0,5 t**. Die fahrzeugspezifischen Grenzen stehen unten. Module liegen in den Vorräten und werden im Fuhrpark verbraucht; ein direkter Münzkauf ist nicht möglich.
 
 | Vorhandenes Fahrzeugmodell | Grundkapazität | Neue Ausbaustufen | Maximale Kapazität |
 |---|---:|---:|---:|
@@ -145,7 +145,7 @@ Die Basiswerte stehen zentral in `TRANSPORT_BASE` in `app.js`. Prämie, Menge un
 
 Die Basisprämie bleibt **1 M je tatsächlich transportierter Tonne**. Der Firmenbonus erhöht nur diese einmalige Abschlussprämie; Tonnenkilometervergütung, Fahrzeugkosten, Lastkosten und Beute bleiben unverändert.
 
-Die **gemeinsame Auftragsbörse** zeigt ab Spielbeginn **fünf verfügbare Angebote insgesamt**. Jeder neue Platz wird unabhängig mit **80 % Regionalverkehr und 20 % Fernverkehr** besetzt. Die Disposition erweitert die gemeinsame Liste auf bis zu **15 Angebote**. Sobald ein Auftrag zugewiesen wird, wird sein Platz sofort neu ausgewürfelt und aufgefüllt. Die Auftragsseite zeigt nur verfügbare Angebote; Fortschritt laufender Aufträge ist in der Garage sichtbar. Die Liste zeigt die **Frachtvergütung** unabhängig vom LKW; das Zuweisungsfenster zerlegt den Gewinn je passendem LKW.
+Die **gemeinsame Auftragsbörse** zeigt ab Spielbeginn **fünf verfügbare Angebote insgesamt**. Jeder neue Platz wird unabhängig mit **80 % Regionalverkehr und 20 % Fernverkehr** besetzt. Die Disposition erweitert die gemeinsame Liste auf bis zu **15 Angebote**. Sobald ein Auftrag zugewiesen wird, wird sein Platz sofort neu ausgewürfelt und aufgefüllt. Die Auftragsseite zeigt nur verfügbare Angebote; Fortschritt laufender Aufträge ist im Fuhrpark sichtbar. Die Liste zeigt die **Frachtvergütung** unabhängig vom LKW; das Zuweisungsfenster zerlegt den Gewinn je passendem LKW.
 
 Pro neuem Angebot im Regionalverkehr oder Fernverkehr besteht unabhängig eine 5-%-Grundchance auf einen bereits freigeschalteten Stammkunden dieses Segments. Eine Liste kann daher auch ganz ohne Kundenauftrag sein. Aktive Fahrzeugkarten und Boni auf Sonder- und Empfehlungsfahrten wirken weiterhin; die regionalen Karten-Fundchancen stehen im Abschnitt Expeditionen.
 
@@ -155,13 +155,13 @@ Für die Fahrzeit gilt: **Stadtverkehr** `Strecke / Tempo beladen`; **Single Way
 
 **Automatische Aktualisierung:** Alle nicht gehaltenen verfügbaren Angebote sämtlicher Auftragsarten werden **alle 15 Minuten kostenlos** ersetzt. Der nächste Zeitpunkt und ein Countdown stehen im Spielstand und auf der Auftragsseite. Nach einer Spielpause wird beim erneuten Öffnen eine überfällige Aktualisierung ausgeführt; verpasste Intervalle werden nicht einzeln nachgespielt. Erst ein tatsächlich ausgeführter automatischer Angebotswechsel setzt den Zähler für manuelle Aktualisierungen auf null. Bei der einmaligen Migration von der 5-Minuten-Regel wird der gespeicherte nächste Wechsel um 10 Minuten verschoben.
 
-**Manuelle Aktualisierung:** Der Knopf **„Neue Angebote“** ersetzt alle nicht gehaltenen verfügbaren Angebote der gemeinsamen Börse. Der Preis des nächsten Klicks beträgt **250 M × max(1, Anzahl aller eigenen Fahrzeuge) × (1 + Anzahl erfolgreicher manueller Aktualisierungen seit dem letzten automatischen Angebotswechsel)**. Mit fünf Fahrzeugen kosten die ersten drei manuellen Wechsel 1.250 M, 2.500 M und 3.750 M. Der Zähler bleibt im Spielstand erhalten und hat kein Limit. Eine manuelle Aktualisierung verschiebt den automatischen Timer nicht.
+**Manuelle Aktualisierung:** Der Knopf **„Neue Angebote“** ersetzt alle nicht gehaltenen verfügbaren Angebote der gemeinsamen Börse. Der Preis des nächsten Klicks beträgt **250 M × max(1, Anzahl aller eigenen Fahrzeuge) × (1 + Anzahl erfolgreicher manueller Aktualisierungen seit dem letzten automatischen Angebotswechsel)**. Mit einem Fahrzeug kosten die ersten drei manuellen Wechsel 250 M, 500 M und 750 M. Der Zähler bleibt im Spielstand erhalten und hat kein Limit. Eine manuelle Aktualisierung verschiebt den automatischen Timer nicht.
 
 In der normalen Auftragsbörse lässt sich **von Beginn an 1 verfügbarer Auftrag halten**, gemeinsam über Regional- und Fernverkehr. Das offene Schloss ganz rechts hält einen Auftrag beim Klick fest und wird geschlossen hervorgehoben. Erneutes Klicken gibt ihn frei. Ist der Platz belegt, bleiben die anderen Schlösser anklickbar und zeigen den Hinweis „Du kannst nur 1 Auftrag halten.“ Gehaltene Angebote belegen weiterhin einen Platz in der gemeinsamen Börse und bleiben bei manuellen sowie automatischen Angebotswechseln mit allen Auftragsdaten unverändert. Bei Zuweisung an einen LKW wird der Halteplatz frei; der Angebotsplatz wird wie üblich aufgefüllt. Die Auswahl bleibt nach Reload bestehen.
 
 ## 5. Fahrtzeit, Münzen und XP
 
-- Leer-Tempo: **1 km pro Sekunde** bei Common 0. Der Fahrzeugrang erhöht es gemäß der Formel oben. Beladen sinkt dieses Tempo je tatsächlich geladener Tonne um 1 %, auch bei der Grundkapazität. Tempo kann nicht manuell ausgebaut werden; Kapazität nur über Module in der Garage.
+- Leer-Tempo: **1 km pro Sekunde** bei Common 0. Der Fahrzeugrang erhöht es gemäß der Formel oben. Beladen sinkt dieses Tempo je tatsächlich geladener Tonne um 1 %, auch bei der Grundkapazität. Tempo kann nicht manuell ausgebaut werden; Kapazität nur über Module im Fuhrpark.
 - Dauer einer Stadttour: `Strecke / Tempo beladen`. Single Way: `Strecke / Tempo beladen + Strecke / Tempo leer`. Dual Way: `2 × Strecke / Tempo beladen`. Die Zahlung und der Auftragsfortschritt werden bei den beiden Fernverkehrsarten erst nach der Rückfahrt gebucht; auch nach der letzten Lieferung fährt der LKW zurück.
 - Fahrzeugkosten: `gefahrene Kilometer × (Fahrzeugpreis je km − 0,001 × Werkstattstufe)`. Stadtverkehr bezahlt eine Strecke, Single Way und Dual Way bezahlen **Hin- und Rückfahrt**. Die Basispreise je Fahrzeug stehen in der Tabelle oben.
 - Lastkosten: `beladene Tonnenkilometer × 0,10 M`. Tatsächlich geladene Tonnen zählen; eine teilweise gefüllte letzte Fahrt kostet entsprechend weniger.
@@ -276,7 +276,7 @@ Nach der Freischaltung der Disposition kann die gemeinsame Auftragsbörse von **
 | 5 | 2.500 M | 10 |
 | 6–10 | 3.000–5.000 M, je Stufe +500 M | 11–15 |
 
-Die **Werkstatt** hat **50 Ausbaustufen**. Jede Stufe senkt den Fahrzeugpreis aller LKW um **0,001 M/km**. Der Satz lautet `Fahrzeuggrundpreis − 0,001 × Werkstattstufe M/km`. Auf Stufe 50 spart jeder LKW **0,05 M je gefahrenem Kilometer**; die Lastkosten und Frachtvergütung bleiben gleich. Der jeweils aktuelle Satz gilt beim Abschluss einer Tour; die Gewinnvorschau im Zuweisungsfenster sowie die Garagentabelle und Fahrzeugdetails zeigen diesen Satz. Bereits gebuchte Touren werden nicht rückwirkend geändert.
+Die **Werkstatt** hat **50 Ausbaustufen**. Jede Stufe senkt den Fahrzeugpreis aller LKW um **0,001 M/km**. Der Satz lautet `Fahrzeuggrundpreis − 0,001 × Werkstattstufe M/km`. Auf Stufe 50 spart jeder LKW **0,05 M je gefahrenem Kilometer**; die Lastkosten und Frachtvergütung bleiben gleich. Der jeweils aktuelle Satz gilt beim Abschluss einer Tour; die Gewinnvorschau im Zuweisungsfenster sowie die Fuhrparktabelle und Fahrzeugdetails zeigen diesen Satz. Bereits gebuchte Touren werden nicht rückwirkend geändert.
 
 Die Werkstatt schaltet keine Tempo- oder Kapazitätsausbauten frei; Kapazität wird ausschließlich mit Modulen im Fahrzeugdetail erhöht. Bei älteren Spielständen entfallen gespeicherte manuelle Fahrzeugausbauten und ihre Werkstattfreigaben. Die dafür erfassten Münzausgaben werden einmalig erstattet. Fahrzeugkapazitäten entsprechen danach wieder der jeweiligen Grundklasse; neue Modulausbauten werden getrennt gespeichert. Vorhandene Fahrzeugränge und laufende Aufträge bleiben erhalten; laufende Aufträge verwenden das aktuelle Tempo und die Grundkapazität.
 
@@ -315,17 +315,13 @@ Ein abgeschlossener normaler Stammkundenauftrag vergibt mit **20 % im Regionalve
 
 Beim Abschluss einer Sonderfahrt werden zwei unabhängige Chancen einmalig ausgewürfelt: Im Regionalverkehr **8 % Kapazitätsmodul** und **4 % Empfehlungsfahrt**, im Fernverkehr **12 % Kapazitätsmodul** und **6 % Empfehlungsfahrt**. Die kundenbezogene Fähigkeit erhöht nur die Empfehlungschance. Empfehlungsfahrten werden für denselben Kunden und dasselbe Segment mit festen Auftragsdaten gespeichert und später bewusst gestartet. Sie erzeugen keine weiteren Empfehlungsfahrten. Ihre vorläufige Modulchance beträgt **20 % im Regionalverkehr** und **30 % im Fernverkehr**. Die Grundwerte stehen zentral in `SPECIAL_CHANCES` in `app.js`. Modulbeute und die bestehende Auftragsprämie werden beim Abschluss festgelegt, nach dem Abholen gutgeschrieben und können auch nach Reload nur einmal abgeholt werden.
 
-Die **Vorräte** zeigen Kapazitätsmodule. Im Garagen-Fahrzeugdetail stehen aktuelle und maximale Ausbaustufe, aktuelle und maximale Kapazität sowie **1 Kapazitätsmodul für die nächste Stufe**. Alte Spielstände behalten LKW, IDs, laufende Aufträge und bereits erworbene Kapazität; neue Modulstände beginnen bei null.
+Die **Vorräte** zeigen Kapazitätsmodule. Im Fuhrpark-Fahrzeugdetail stehen aktuelle und maximale Ausbaustufe, aktuelle und maximale Kapazität sowie **1 Kapazitätsmodul für die nächste Stufe**. Diese Ausbauten gelten auch für Kartenfahrzeuge und bleiben erhalten, wenn eine Karte aus dem Fuhrpark genommen wird.
 
 ## Fahrzeugverkauf
 
-In der Garage lassen sich freie Fahrzeuge ohne laufenden Auftrag nach einer gesonderten Bestätigung verkaufen. Mindestens ein regulärer Auftrags-LKW muss im Fuhrpark bleiben; Stadttransporter können vollständig verkauft werden. Ein dem Stadthub zugeteilter Stadttransporter darf verkauft werden, sofern er keinen Einzelauftrag fährt. Der Fahrzeugplatz wird frei.
+Kartenfahrzeuge werden nicht verkauft. Freie Karten werden aus dem Fuhrpark genommen und bleiben in der Sammlung; ihre Ausbauten und Fahrstatistik bleiben erhalten. Gekaufte Stadttransporter können ohne laufenden Einzelauftrag nach einer Bestätigung verkauft werden. Der Münzerlös beträgt bei 0 gefahrenen Kilometern 95 % des Kaufpreises und sinkt linear bis 500.000 km auf 15 %. Für investierte Zahnräder werden 50 % abgerundet erstattet; eingebaute Kapazitätsmodule gehen verloren.
 
-Der Münzerlös beträgt bei 0 gefahrenen Kilometern 95 % des maßgeblichen Kaufpreises. Der Satz sinkt linear um 80 Prozentpunkte bis 500.000 km auf 15 % und bleibt danach bei 15 %. Gezählt werden die Kilometer des konkreten Fahrzeugs für jede abgeschlossene Tour, einschließlich der Rückfahrt bei Single Way und Dual Way. Der Erlös wird auf zwei Nachkommastellen gerundet. Für gekaufte Fahrzeuge gilt der beim Kauf tatsächlich gezahlte Preis, für beide kostenlosen Start-LKW der jeweils aktuelle 7,5-Tonner-Modellpreis. Jeder der beiden Starter kann verkauft werden, solange mindestens ein regulärer Auftrags-LKW bleibt. Bei alten Spielständen ohne historischen Einzelpreis wird für gekaufte Fahrzeuge der bisherige Modellpreis bei der Migration festgehalten; spätere Händlerpreise ändern ihn nicht.
-
-Je Seltenheit werden zunächst alle Zahnräder der erreichten Rangstufen addiert. Davon werden einmalig 50 % berechnet und auf ganze Zahnräder **abgerundet**. Es gibt keinen zusätzlichen Rangbonus in Münzen. Eingebaute Kapazitätsmodule gehen endgültig verloren: Neue Stufen kosten jeweils 1 Modul; für alte Stufen bleibt der tatsächlich historische Einsatz von 1 beziehungsweise insgesamt 4 Modulen erfasst. Der Verkaufsdialog zeigt Münzen, Zahnräder jeder Seltenheit und verlorene Module vor der endgültigen Bestätigung. Ein neu gekauftes Fahrzeug beginnt wieder bei Rangstufe 0.
-
-Fahrzeugdetails zeigen gefahrene Kilometer sowie abgeschlossene Touren und Aufträge. Bei älteren Spielständen werden diese Werte aus den noch vorhandenen, dem Fahrzeug zugeordneten Aufträgen soweit möglich rekonstruiert. Bereits entfernte Aufträge und frühere pauschale Stadthub-Leistung lassen sich keinem einzelnen Fahrzeug zuverlässig zuordnen und erscheinen daher nicht in dessen Zähler. Neue, im Stadthub vollendete Hin- und Rückfahrten zählen je Fahrzeug mit 24 km als Tour; sie zählen nicht als abgeschlossene Einzelaufträge.
+Fahrzeugdetails zeigen gefahrene Kilometer sowie abgeschlossene Touren und Aufträge.
 
 ## Expeditionen und Fahrzeugkarten
 
@@ -339,7 +335,7 @@ Fünf Regionen enthalten je sieben Orte, einen einmaligen Transportauftrag am En
 - Die übrigen **90 %** der Auslosungen verteilen sich proportional zum bisherigen Auftragspool: Fahrzeugkartenauftrag **18 %**, Materialauftrag **67,5 %**, Sonderfahrt **4,05 %**, Empfehlungsauftrag **0,45 %** als absolute Chancen pro Auslosung. Fahrzeugkartenaufträge geben beim Abschluss Shards und Münzen, aber keinen weiteren Kartenwurf. Fahrzeugkarten- und Materialaufträge bleiben bis zur separaten LKW-Zuweisung gespeichert; Sonder- und Empfehlungsfahrten landen in der Sonderfahrtenliste.
 - Auftragsstufen je Region: Region 1 = 100 % Stufe 1; Region 2 = 75 % Stufe 1 und 25 % Stufe 2; Region 3 = je 50 % Stufe 1 und 2; Region 4 = 25/50/25 % für Stufe 1/2/3; Region 5 = 10/45/45 % für Stufe 1/2/3. Stufe 1/2/3 benötigt 20/40/60 t, mit 30 km beladen hin und 30 km leer zurück je Tour.
 - Fahrzeugkartenaufträge geben 2 garantierte universelle Shards und einen weiteren mit 20 % Grundchance plus aktivem Shardbonus. Materialaufträge geben mit 20 % Grundchance ein oder zwei Shards, mit 0,3 % ein Kapazitätsmodul sowie mit 6 % 1/2/3 Firmenausbau-Items nach Auftragsstufe. Der Münzgrundwert ist 5 M je Regionstufe für Fahrzeugkartenaufträge und 15 M je Regionstufe für Materialaufträge. Alle Beute wird beim Abschluss einmalig gespeichert.
-- Im Modul **Flotte** werden bis zu fünf gefundene Karten eingesetzt. Nur eingesetzte Karten geben Boni. Die fünf Regionen stehen für Regeneration, Kapazität, zusätzliche Shards, kürzere Expeditionsdauer und mehr Expeditionsmünzen. Die Boni der drei Seltenheiten einer Region sind unterschiedlich stark. Karten beginnen auf Level 1 und erreichen maximal Level 10. Die Shardkosten je nächstem Level sind 1, 2, 4, 8, 16, 32, 64, 128 und 256, insgesamt 511 Shards der eigenen Seltenheit.
+- Im Modul **Flotte** werden bis zu fünf gefundene Karten für Boni eingesetzt. Dieselbe Karte darf zusätzlich im Fuhrpark fahren; sie belegt höchstens einen Platz je Bereich. Nur in der Flotte eingesetzte Karten geben Boni. Die fünf Regionen stehen für Regeneration, Kapazität, zusätzliche Shards, kürzere Expeditionsdauer und mehr Expeditionsmünzen. Die Boni der drei Seltenheiten einer Region sind unterschiedlich stark. Karten beginnen auf Level 1 und erreichen maximal Level 10. Die Shardkosten je nächstem Level sind 1, 2, 4, 8, 16, 32, 64, 128 und 256, insgesamt 511 Shards der eigenen Seltenheit.
 - Shardpools pro Rolle nach Auftragsstufe: Stufe 1 = 58 % Common, 32 % Uncommon, 10 % Rare; Stufe 2 = 37/31/32 %; Stufe 3 = 29/25/46 %. Im Modul **Entwicklung** ergeben 10 Shards einer Seltenheit 1 Shard der nächsthöheren Seltenheit. Epic und Legendär entstehen bei neuen Expeditionen nicht mehr.
 - Spielstandversion 43 erhält bereits gefundene Karten, Level und aktive Flottenplätze. Bisherige Epic-Shards werden einmalig im Wert 10:1, Legendary-Shards im Wert 100:1 in Rare-Shards umgewandelt. Vorherige Missionen und Belohnungen werden nicht neu ausgewürfelt.
 

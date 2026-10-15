@@ -1,6 +1,6 @@
 # Frachtwerk
 
-Ein lokales Transportspiel im Browser. Du kaufst LKW, weist Aufträge zu und baust deine Spedition aus. Der Spielstand wird ausschließlich im Browser per `localStorage` gespeichert; Konten und ein Server sind noch nicht eingerichtet.
+Ein lokales Transportspiel im Browser. Du findest Fahrzeugkarten auf Expeditionen, setzt sie im Fuhrpark ein, weist Aufträge zu und baust deine Spedition aus. Stadttransporter für den Stadthub kaufst du beim Händler. Der Spielstand wird ausschließlich im Browser per `localStorage` gespeichert; Konten und ein Server sind noch nicht eingerichtet.
 
 ## Lokal starten
 

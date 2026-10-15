@@ -63,7 +63,7 @@ api.setGame(migrated);
 assert.equal(migrated.version, 43);
 assert.equal(migrated.levelFloor, 50);
 assert.equal(api.levelForXp(migrated.xp, migrated).level, 50);
-assert.equal(api.dispatchCapacity(), 15);
+assert.equal(api.dispatchCapacity(), 10);
 assert.equal(migrated.expedition.points, 17);
 assert.equal(migrated.manualRefreshCount, 2);
 assert.equal(migrated.nextAutoRefreshAt, old.nextAutoRefreshAt);

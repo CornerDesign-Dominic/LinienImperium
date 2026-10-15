@@ -25,7 +25,7 @@ for (const [tier, volume, tours] of [[1, 20, 5], [2, 40, 10], [3, 60, 15]]) {
   const coinsBefore = state.coins;
   const xpBefore = state.xp;
   const tripsBefore = state.stats.trips;
-  assert.equal(api.startExpeditionMission(0, 'endless', 'LKW-01', job.id), true);
+  assert.equal(api.startExpeditionMission(0, 'endless', state.trucks[0].id, job.id), true);
   const mission = state.expedition.missions.at(-1);
   assert.equal(mission.transport.volume, volume);
   assert.equal(mission.transport.tours.length, tours);

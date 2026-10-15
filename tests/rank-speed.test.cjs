@@ -12,7 +12,7 @@ const context = vm.createContext({
   Date, Math, Intl, Number, JSON, setTimeout, clearTimeout,
   document: { querySelector: () => null }
 });
-vm.runInContext(beforeEvents + '\n globalThis.testApi = { TRUCKS, newGame, truckSpeed, tourSeconds, orderDuration, estimatedProfit, estimatedProfitPerMinute, canTruckTakeOrder, buyTruck, loadGame, replenishOrders, upgradeOfferLimit, setGame: value => { game = value; }, disableRendering: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
+vm.runInContext(beforeEvents + '\n globalThis.testApi = { TRUCKS, newGame, truckSpeed, tourSeconds, orderDuration, estimatedProfit, estimatedProfitPerMinute, canTruckTakeOrder, buyTruck, addCardToGarage, loadGame, replenishOrders, upgradeOfferLimit, setGame: value => { game = value; }, disableRendering: () => { render = () => {}; showToast = () => {}; } };\n})();', context);
 const api = context.testApi;
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} !== ${expected}`);
 
@@ -22,9 +22,9 @@ assert.equal(state.version, 43);
 assert.equal(state.coins, 1000);
 assert.equal(state.startingCoins, 1000);
 assert.deepEqual(Array.from(api.TRUCKS, truck => truck.capacity), [1, 1.5, 4, 8.5, 18, 13, 24]);
-assert.deepEqual(Array.from(state.trucks, truck => truck.capacity), [4, 4]);
-assert.deepEqual(Array.from(state.trucks, truck => truck.id), ['LKW-01', 'LKW-02']);
-assert.equal(state.nextTruck, 3);
+assert.deepEqual(Array.from(state.trucks, truck => truck.capacity), [4]);
+assert.deepEqual(Array.from(state.trucks, truck => truck.id), ['KARTE-navigator']);
+assert.equal(state.nextTruck, 1);
 assert.equal(state.stats.truckSpent, 0);
 assert.equal(state.orders.filter(order => order.status === 'available').length, 5, 'five mixed offers at level 1');
 assert.equal(api.canTruckTakeOrder({ tier: 0 }, { category: 'city' }), true);
@@ -46,11 +46,13 @@ assert.equal(existing.company.offerLevel, 1, 'shared board can be expanded at le
 assert.equal(existing.orders.filter(order => order.status === 'available').length, 6);
 api.setGame(state);
 state.coins = 500000;
-api.buyTruck(4);
-assert.equal(state.trucks[2].tier, 4, '18-t truck can be purchased at player level 1');
-assert.equal(state.trucks[2].capacity, 18);
-assert.equal(state.trucks[2].id, 'LKW-03');
-assert.equal(state.coins, 0);
+assert.equal(api.buyTruck(4), false);
+state.expedition.characters.r2_rare = { level: 1, progress: 0 };
+assert.equal(api.addCardToGarage('r2_rare'), true);
+assert.equal(state.trucks[1].tier, 4, '18-t card vehicle can be added at player level 1');
+assert.equal(state.trucks[1].capacity, 18);
+assert.equal(state.trucks[1].id, 'KARTE-r2_rare');
+assert.equal(state.coins, 500000);
 const truck = { id: 'LKW-01', branchId: 'hamburg', tier: 4, capacity: 18, rarityLevel: 50 };
 for (const [level, emptySpeed] of [[0, 1], [10, 1.05], [20, 1.10], [30, 1.15], [40, 1.20], [50, 1.25]]) {
   truck.rarityLevel = level;
@@ -75,7 +77,6 @@ near(api.truckSpeed(truck), 1.25);
 near(api.truckSpeed(truck, 18), 1.025);
 
 const previous = api.newGame('hamburg');
-previous.trucks.pop(); // Model a save from before the second starter.
 previous.version = 29;
 previous.trucks.push({ id: 'LKW-02', tier: 1, model: 'Stadtlaster', capacity: 1.5, rarityLevel: 0 });
 previous.trucks[0].capacity = 4;
