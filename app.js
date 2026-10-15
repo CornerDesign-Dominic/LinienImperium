@@ -283,7 +283,7 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), overtimePoints: 100, overtimeCapacity: 100, pendingLevelUps: [], inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
       stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, transportUpgradeSpent: 0, hubUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
@@ -877,6 +877,7 @@
   let selectedExpeditionJobGroup = null;
   let selectedDepartmentId = null;
   let bulkRewardIds = [];
+  let levelAllocation = { expedition: 0, overtime: 0 };
   let lastPaint = 0;
   let toastTimer;
 
@@ -952,7 +953,7 @@
     }, 0);
   }
   function expeditionCapacity() {
-    return 50 + game.expedition.regions.reduce((sum, region) => sum + region.deliveries.filter(Boolean).length, 0) + expeditionBonus('capacity');
+    return 50 + (game.expedition.levelCapacityBonus || 0) + game.expedition.regions.reduce((sum, region) => sum + region.deliveries.filter(Boolean).length, 0) + expeditionBonus('capacity');
   }
   function regenerateExpedition(now = Date.now()) {
     const expedition = game.expedition;
@@ -1794,7 +1795,9 @@
         if (levelForXp(game.xp, game).level > beforeLevel) {
           const levels = levelForXp(game.xp, game).level - beforeLevel;
           game.expedition.points += 50 * levels;
-          addEvent(`Level ${levelForXp(game.xp, game).level} erreicht! +${50 * levels} Expeditionspunkte.`);
+          game.pendingLevelUps ||= [];
+          for (let level = beforeLevel + 1; level <= beforeLevel + levels; level++) game.pendingLevelUps.push(level);
+          addEvent(`Level ${levelForXp(game.xp, game).level} erreicht! +${50 * levels} Expeditionspunkte und ${5 * levels} frei verteilbare Punkte.`);
         }
         if (order.delivered >= order.volume) {
           order.status = 'completed'; order.completedAt = order.tripStartAt; order.tripStartAt = null; order.tripCargo = null;
@@ -2011,9 +2014,49 @@
     const expeditionPoints = $('#topbar-expedition-points');
     expeditionPoints.textContent = `${integer(game.expedition.points)} / ${integer(expeditionCapacity())}`;
     expeditionPoints.setAttribute('aria-label', `${integer(game.expedition.points)} von ${integer(expeditionCapacity())} Expeditionspunkten`);
+    const overtimePoints = $('#topbar-overtime-points');
+    overtimePoints.textContent = `${integer(game.overtimePoints ?? 100)} / ${integer(game.overtimeCapacity ?? 100)}`;
+    overtimePoints.setAttribute('aria-label', `${integer(game.overtimePoints ?? 100)} von ${integer(game.overtimeCapacity ?? 100)} Überstundenpunkten`);
     $('#stat-active').textContent = game.orders.filter(o => o.status === 'active').length + game.expedition.missions.filter(m => m.status === 'active').length;
     $('#stat-fleet').textContent = `${game.trucks.length} ${game.trucks.length === 1 ? 'Fahrzeug' : 'Fahrzeuge'} in den Garagen`;
     $('#nav-order-count').textContent = game.orders.filter(o => o.status === 'available').length;
+  }
+  function renderLevelUpDialog() {
+    const level = game.pendingLevelUps?.[0];
+    if (!level) return;
+    const remaining = 5 - levelAllocation.expedition - levelAllocation.overtime;
+    $('#level-up-title').textContent = `Herzlichen Glückwunsch zu Level ${level}!`;
+    $('#level-up-description').textContent = 'Du erhältst weiterhin 50 Expeditionspunkte. Verteile zusätzlich 5 Punkte dauerhaft auf die beiden Vorräte. Jede Zuweisung erhöht Maximum und aktuellen Vorrat.';
+    $('#level-up-allocation').innerHTML = `<p class="level-up-remaining">Noch ${remaining} von 5 Punkten verteilen</p>${[['expedition', 'Expeditionspunkte', game.expedition.points, expeditionCapacity()], ['overtime', 'Überstundenpunkte', game.overtimePoints ?? 100, game.overtimeCapacity ?? 100]].map(([kind, label, current, capacity]) => `<div class="level-up-row"><span><strong>${label}</strong><small>Aktuell ${integer(current)} / ${integer(capacity)} · nach Zuweisung +${levelAllocation[kind]}</small></span><div class="level-up-stepper"><button type="button" data-level-allocate="${kind}:-1" aria-label="${label} um einen Punkt verringern" ${levelAllocation[kind] ? '' : 'disabled'}>−</button><output>${levelAllocation[kind]}</output><button type="button" data-level-allocate="${kind}:1" aria-label="${label} um einen Punkt erhöhen" ${remaining ? '' : 'disabled'}>+</button></div></div>`).join('')}`;
+    $('#confirm-level-up').disabled = remaining !== 0;
+  }
+  function maybeShowLevelUpDialog() {
+    if (!game.pendingLevelUps?.length || $('#level-up-dialog').open || document.querySelector('dialog[open]')) return;
+    levelAllocation = { expedition: 0, overtime: 0 };
+    renderLevelUpDialog();
+    $('#level-up-dialog').showModal();
+  }
+  function adjustLevelAllocation(kind, change) {
+    if (!game.pendingLevelUps?.length || !['expedition', 'overtime'].includes(kind) || ![-1, 1].includes(change)) return false;
+    const next = levelAllocation[kind] + change;
+    if (next < 0 || next + levelAllocation[kind === 'expedition' ? 'overtime' : 'expedition'] > 5) return false;
+    levelAllocation[kind] = next;
+    renderLevelUpDialog();
+    return true;
+  }
+  function confirmLevelUpAllocation() {
+    if (!game.pendingLevelUps?.length || levelAllocation.expedition + levelAllocation.overtime !== 5) return false;
+    game.expedition.levelCapacityBonus = (game.expedition.levelCapacityBonus || 0) + levelAllocation.expedition;
+    game.expedition.points += levelAllocation.expedition;
+    game.overtimeCapacity = (game.overtimeCapacity ?? 100) + levelAllocation.overtime;
+    game.overtimePoints = (game.overtimePoints ?? 100) + levelAllocation.overtime;
+    const level = game.pendingLevelUps.shift();
+    addEvent(`Level ${level}: ${levelAllocation.expedition} Expeditionspunkte und ${levelAllocation.overtime} Überstundenpunkte dauerhaft zugewiesen.`);
+    save();
+    if ($('#level-up-dialog').open) $('#level-up-dialog').close();
+    render();
+    maybeShowLevelUpDialog();
+    return true;
   }
   function renderDashboard() {
     const home = startCityById(game.startCity);
@@ -2526,6 +2569,11 @@
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button');
     if (!target) return;
+    if (target.dataset.levelAllocate) {
+      const [kind, change] = target.dataset.levelAllocate.split(':');
+      adjustLevelAllocation(kind, Number(change));
+      return;
+    }
     if (target.dataset.idleOrders !== undefined) { openIdleOrders(target.dataset.category); return; }
     if (target.dataset.view) setView(target.dataset.view);
     if (target.dataset.go) setView(target.dataset.go);
@@ -2610,6 +2658,8 @@
   });
   $('#close-truck-dialog').addEventListener('click', () => $('#truck-dialog').close());
   $('#close-expedition-draw').addEventListener('click', () => $('#expedition-draw-dialog').close());
+  $('#level-up-dialog').addEventListener('cancel', event => event.preventDefault());
+  $('#confirm-level-up').addEventListener('click', confirmLevelUpAllocation);
   $('#truck-dialog').addEventListener('close', () => { selectedTruckId = null; });
   $('#cancel-sale').addEventListener('click', () => $('#sale-dialog').close());
   $('#close-sale-dialog').addEventListener('click', () => $('#sale-dialog').close());
@@ -2651,6 +2701,7 @@
     const expeditionsSettled = settleExpeditions(now);
     settleHub(now);
     if (tripsSettled || expeditionsSettled || refreshed || now - lastPaint > 500) { render(); lastPaint = now; }
+    maybeShowLevelUpDialog();
   }
   const requested = location.hash.slice(1);
   const requestedView = requested === 'garage' ? 'fleet' : requested;
