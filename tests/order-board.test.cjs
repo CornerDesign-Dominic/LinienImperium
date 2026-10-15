@@ -118,7 +118,7 @@ old.company.offerLevels.international = 2;
 old.orders[0].pinned = true;
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.company.offerLevel, 5);
 assert.equal(available(migrated).length, 5);
 assert.ok(available(migrated).some(order => order.pinned));

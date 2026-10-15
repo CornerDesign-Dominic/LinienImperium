@@ -74,7 +74,7 @@ old.trucks = [
 ];
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.deepEqual(migrated.trucks.map(truck => truck.id), old.trucks.map(truck => truck.id));
 assert.deepEqual(migrated.trucks.map(truck => truck.capacity), [2, 6, 9.5, 25]);
 assert.deepEqual(migrated.trucks.map(truck => truck.moduleCapacityLevel), [2, 4, 2, 2]);

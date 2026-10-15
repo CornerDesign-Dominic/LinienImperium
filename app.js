@@ -54,14 +54,30 @@
     { kind: 'special', chance: .045 },
     { kind: 'referral', chance: .005 }
   ];
+  const EXPEDITION_CARD_CHANCES = [
+    { rarity: 'common', chance: .06 },
+    { rarity: 'uncommon', chance: .03 },
+    { rarity: 'rare', chance: .01 }
+  ];
   const EXPEDITION_STAGE_WEIGHTS = [[1], [.75, .25], [.5, .5], [.25, .5, .25], [.1, .45, .45]];
   const EXPEDITION_REGIONS = ['Region 1', 'Region 2', 'Region 3', 'Region 4', 'Region 5'];
+  // Die IDs der bisherigen fünf Karten bleiben für vorhandene Spielstände erhalten.
   const EXPEDITION_CHARACTERS = [
-    { id: 'navigator', name: 'Navigatorin', rarity: 'common', region: 0, bonus: 'regen', base: 2, step: 1 },
-    { id: 'disponent', name: 'Disponent', rarity: 'uncommon', region: 1, bonus: 'capacity', base: 5, step: 2 },
-    { id: 'forscherin', name: 'Forscherin', rarity: 'rare', region: 2, bonus: 'shards', base: 5, step: 2 },
-    { id: 'logistiker', name: 'Logistiker', rarity: 'epic', region: 3, bonus: 'duration', base: 10, step: 2 },
-    { id: 'pionierin', name: 'Pionierin', rarity: 'legendary', region: 4, bonus: 'loot', base: 15, step: 3 }
+    { id: 'navigator', name: 'Kurierwagen', rarity: 'common', region: 0, bonus: 'regen', base: 2, step: 1 },
+    { id: 'r1_uncommon', name: 'Rallye-Transporter', rarity: 'uncommon', region: 0, bonus: 'regen', base: 3, step: 1 },
+    { id: 'r1_rare', name: 'Pfadfinder-LKW', rarity: 'rare', region: 0, bonus: 'regen', base: 4, step: 2 },
+    { id: 'r2_common', name: 'Versorgungswagen', rarity: 'common', region: 1, bonus: 'capacity', base: 3, step: 1 },
+    { id: 'disponent', name: 'Vorrats-LKW', rarity: 'uncommon', region: 1, bonus: 'capacity', base: 5, step: 2 },
+    { id: 'r2_rare', name: 'Expeditionsträger', rarity: 'rare', region: 1, bonus: 'capacity', base: 7, step: 3 },
+    { id: 'r3_common', name: 'Schrottsammler', rarity: 'common', region: 2, bonus: 'shards', base: 2, step: 1 },
+    { id: 'r3_uncommon', name: 'Bergungs-LKW', rarity: 'uncommon', region: 2, bonus: 'shards', base: 3, step: 1 },
+    { id: 'forscherin', name: 'Fundort-Scanner', rarity: 'rare', region: 2, bonus: 'shards', base: 5, step: 2 },
+    { id: 'r4_common', name: 'Geländetransporter', rarity: 'common', region: 3, bonus: 'duration', base: 4, step: 1 },
+    { id: 'r4_uncommon', name: 'Schnellfrachter', rarity: 'uncommon', region: 3, bonus: 'duration', base: 7, step: 2 },
+    { id: 'logistiker', name: 'Turbo-Konvoi', rarity: 'rare', region: 3, bonus: 'duration', base: 10, step: 2 },
+    { id: 'r5_common', name: 'Handelswagen', rarity: 'common', region: 4, bonus: 'coins', base: 5, step: 1 },
+    { id: 'r5_uncommon', name: 'Werttransporter', rarity: 'uncommon', region: 4, bonus: 'coins', base: 10, step: 2 },
+    { id: 'pionierin', name: 'Goldkonvoi', rarity: 'rare', region: 4, bonus: 'coins', base: 15, step: 3 }
   ];
   const CHARACTER_LEVEL_COSTS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
   const OLD_CHARACTER_COSTS = { common: 5, uncommon: 10, rare: 20, epic: 30, legendary: 40 };
@@ -69,8 +85,8 @@
   // Testpools je Auftragsstufe; Stufe 3 liefert im Regions-5-Maximalszenario etwa 7 Legendary-Shards/Monat.
   const EXPEDITION_SHARD_POOLS = [
     { common: .58, uncommon: .32, rare: .10 },
-    { common: .37, uncommon: .31, rare: .24, epic: .08 },
-    { common: .29, uncommon: .25, rare: .23, epic: .17, legendary: .06 }
+    { common: .37, uncommon: .31, rare: .32 },
+    { common: .29, uncommon: .25, rare: .46 }
   ];
   const SPECIAL_CHANCES = {
     national: { award: .20, module: .08, referral: .04, referralModule: .20 },
@@ -267,7 +283,7 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 42, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
       stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, transportUpgradeSpent: 0, hubUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
@@ -284,18 +300,31 @@
   function loadGame() {
     try {
       const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if ([37, 38, 39, 40, 41, 42].includes(current?.version) && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(current)))))));
+      if ([37, 38, 39, 40, 41, 42, 43].includes(current?.version) && Array.isArray(current.trucks) && Array.isArray(current.orders) && typeof current.coins === 'number') return upgradeVehicleCardsSave(upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(current))))))));
     } catch (_) { /* Beschädigte Spielstände behandelt die bestehende Migration. */ }
     const stored = loadLegacyGame();
-    if (stored.version === 36) return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored))))))));
-    if (stored.version !== 35) return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(stored)))))));
+    if (stored.version === 36) return upgradeVehicleCardsSave(upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)))))))));
+    if (stored.version !== 35) return upgradeVehicleCardsSave(upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(stored))))))));
     const old = stored.company?.offerLevels || {};
     stored.company ||= newCompany();
     stored.company.offerLevel = clamp((old.national || 0) + (old.international || 0), 0, MAX_OFFER_LEVEL);
     stored.version = 36;
     // Keep every legacy offer and assignment; normal replenishment fills missing slots later.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    return upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored))))))));
+    return upgradeVehicleCardsSave(upgradeCapacitySave(upgradeItemEconomySave(upgradeCharacterSave(upgradeCompanySave(upgradeBalanceSave(ensureExpedition(refreshTruckModelNames(upgradeVehicleSaleSave(stored)))))))));
+  }
+  function upgradeVehicleCardsSave(stored) {
+    if (stored.version !== 42) return stored;
+    const shards = stored.expedition?.shards;
+    if (shards) {
+      // Epic und Legendär behalten ihren bisherigen Umtauschwert von 10:1.
+      shards.rare = (shards.rare || 0) + (shards.epic || 0) * 10 + (shards.legendary || 0) * 100;
+      shards.epic = 0;
+      shards.legendary = 0;
+    }
+    stored.version = 43;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    return stored;
   }
   function upgradeCapacitySave(stored) {
     if (stored.version !== 41) return stored;
@@ -338,14 +367,15 @@
       const count = Math.max(0, Math.floor(Number(expedition.shards[id]) || 0));
       if (count) converted[id] += Math.max(1, Math.round(count * 511 / (45 * OLD_CHARACTER_COSTS[id])));
     }
-    for (const character of EXPEDITION_CHARACTERS) {
+    for (const character of EXPEDITION_CHARACTERS.filter(card => ['navigator', 'disponent', 'forscherin', 'logistiker', 'pionierin'].includes(card.id))) {
+      const oldRarity = { logistiker: 'epic', pionierin: 'legendary' }[character.id] || character.rarity;
       const count = Math.max(0, Math.floor(Number(expedition.specificShards[character.id]) || 0));
-      if (count) converted[character.rarity] += Math.max(1, Math.round(count * 511 / (45 * OLD_CHARACTER_COSTS[character.rarity])));
+      if (count) converted[oldRarity] += Math.max(1, Math.round(count * 511 / (45 * OLD_CHARACTER_COSTS[oldRarity])));
       const card = expedition.characters?.[character.id];
       if (!card) continue;
       card.level = clamp(Math.floor(Number(card.level) || 1), 1, 10);
       if (card.level === 10) { card.progress = 0; continue; }
-      const oldNeeded = card.level * OLD_CHARACTER_COSTS[character.rarity];
+      const oldNeeded = card.level * OLD_CHARACTER_COSTS[oldRarity];
       const oldProgress = clamp(Number(card.progress) || 0, 0, oldNeeded - 1);
       card.progress = Math.round(oldProgress / oldNeeded * CHARACTER_LEVEL_COSTS[card.level - 1] * 1000) / 1000;
     }
@@ -973,15 +1003,18 @@
   function drawExpeditionJob(index) {
     const region = game.expedition.regions[index];
     if (!region?.endlessUnlocked || !expeditionRegionOpen(index) || !spendExpeditionPoints(EXPEDITION_COST)) return false;
-    if (index < 3 && Math.random() < .02) {
-      const character = EXPEDITION_CHARACTERS[index];
-      if (!game.expedition.characters[character.id]) game.expedition.characters[character.id] = { level: 1, progress: 0 };
-      else game.expedition.shards[character.rarity]++;
-      addEvent(`${EXPEDITION_REGIONS[index]}: ${character.name} direkt gefunden.`);
-      save(); render(); showToast(`${character.name} gefunden.`);
-      return 'directCharacter';
+    const draw = Math.random();
+    let cardTotal = 0;
+    const foundRarity = EXPEDITION_CARD_CHANCES.find(item => (cardTotal += item.chance) > draw)?.rarity;
+    if (foundRarity) {
+      const card = EXPEDITION_CHARACTERS.find(item => item.region === index && item.rarity === foundRarity);
+      if (!game.expedition.characters[card.id]) game.expedition.characters[card.id] = { level: 1, progress: 0 };
+      else game.expedition.shards[card.rarity]++;
+      addEvent(`${EXPEDITION_REGIONS[index]}: ${card.name} gefunden.`);
+      save(); render(); showToast(`${card.name} gefunden.`);
+      return `card:${card.id}`;
     }
-    const roll = Math.random();
+    const roll = (draw - cardTotal) / (1 - cardTotal);
     let cumulative = 0;
     const kind = EXPEDITION_JOB_WEIGHTS.find(item => (cumulative += item.chance) > roll)?.kind || 'material';
     if (kind === 'special' || kind === 'referral') {
@@ -998,7 +1031,7 @@
     return kind;
   }
   function expeditionJobLabel(kind) {
-    return { character: 'Charakterauftrag', material: 'Materialauftrag', special: 'Sonderfahrt', referral: 'Empfehlungsauftrag' }[kind] || 'Expeditionsauftrag';
+    return { character: 'Fahrzeugkartenauftrag', material: 'Materialauftrag', special: 'Sonderfahrt', referral: 'Empfehlungsauftrag' }[kind] || 'Expeditionsauftrag';
   }
   function expeditionJobTier(entry) { return [1, 2, 3].includes(entry.tier) ? entry.tier : 1; }
   function rollExpeditionShard(tier) {
@@ -1049,7 +1082,7 @@
   function awardExpeditionLoot(mission) {
     const expedition = game.expedition;
     const region = mission.region;
-    const coins = (mission.lootKind === 'character' ? 5 : 15) * (region + 1);
+    const coins = Math.round((mission.lootKind === 'character' ? 5 : 15) * (region + 1) * (1 + expeditionBonus('coins') / 100));
     game.coins = round2(game.coins + coins);
     game.stats.expeditionRevenue = round2((game.stats.expeditionRevenue || 0) + coins);
     const reward = [`${coins} M`];
@@ -1061,12 +1094,6 @@
         expedition.shards[rarity]++;
         reward.push(`1 ${rarity}-Shard`);
       }
-    }
-    const character = EXPEDITION_CHARACTERS[region];
-    const chance = (mission.lootKind === 'character' && region < 3 ? [.35, .20, .12][region] : 0) * (1 + expeditionBonus('loot') / 100);
-    if (Math.random() < chance) {
-      if (!expedition.characters[character.id]) { expedition.characters[character.id] = { level: 1, progress: 0 }; reward.push(character.name); }
-      else { expedition.shards[character.rarity]++; reward.push(`1 ${character.rarity}-Shard (Duplikat)`); }
     }
     if (mission.lootKind === 'character') {
       const rarity = rollExpeditionShard(expeditionJobTier(mission));
@@ -1154,7 +1181,7 @@
     save(); render(); return true;
   }
   function combineExpeditionShards(tier) {
-    const tiers = RARITIES.map(rarity => rarity.id);
+    const tiers = EXPEDITION_CARD_CHANCES.map(item => item.rarity);
     const index = tiers.indexOf(tier);
     if (index < 0 || index >= tiers.length - 1 || game.expedition.shards[tier] < SHARD_COMBINE_RATIO) return false;
     game.expedition.shards[tier] -= SHARD_COMBINE_RATIO;
@@ -2057,7 +2084,7 @@
     const items = game.inventory.companyItems || 0;
     const customers = CUSTOMERS.filter(customer => customerUnlocked(customer.id));
     $('#development-content').innerHTML = `<section class="panel development-section"><div class="section-head"><h2>Herstellungen</h2></div><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">⌖</span><div><h3>Privatabholung</h3><p>Stelle aus Abholhinweisen einen Auftrag her. Der fertige Auftrag erscheint in den Vorräten und kann dort einem LKW zugewiesen werden.</p></div></div><div class="development-recipe-action"><span class="development-material">Abholhinweise <strong>${integer(hints)} / ${PRIVATE_PICKUP_HINT_COST}</strong></span><button type="button" class="button button-primary" data-combine-hints ${hints < PRIVATE_PICKUP_HINT_COST ? 'disabled' : ''}>Privatabholung herstellen</button></div></article><article class="development-recipe"><div class="development-recipe-main"><span class="development-recipe-icon">◎</span><div><h3>Kundenauftrag</h3><p>Ein zufälliger freigeschalteter Stammkunde erhält einen normalen Auftrag. Der Auftrag bleibt in den Vorräten, bis du einen passenden LKW zuweist. Auch dieser Auftrag zählt nach Abschluss für den gemeinsamen Tonnenkilometer-Fortschritt.</p></div></div><div class="development-recipe-action"><span class="development-material">Firmenausbau-Items <strong>${integer(items)} / ${COMPANY_BALANCE.craftedOrderItems}</strong></span><button type="button" class="button button-primary" data-craft-customer ${!customers.length || items < COMPANY_BALANCE.craftedOrderItems ? 'disabled' : ''}>Kundenauftrag herstellen</button>${customers.length ? '' : '<small>Erst einen Stammkunden freischalten</small>'}</div></article></section>`;
-    $('#development-content').innerHTML += `<section class="panel development-section"><div class="section-head"><h2>Universelle Shards kombinieren</h2></div><p>${SHARD_COMBINE_RATIO} Shards einer Seltenheit ergeben 1 Shard der nächsthöheren Seltenheit.</p><div class="development-shard-grid">${RARITIES.map((rarity, index) => `<div class="expedition-shard"><strong>${rarity.label}: ${integer(game.expedition.shards[rarity.id])}</strong>${index < RARITIES.length - 1 ? `<button class="button button-outline" data-shard-combine="${rarity.id}" ${game.expedition.shards[rarity.id] < SHARD_COMBINE_RATIO ? 'disabled' : ''}>${SHARD_COMBINE_RATIO} zu 1 ${RARITIES[index + 1].label}</button>` : ''}</div>`).join('')}</div></section>`;
+    $('#development-content').innerHTML += `<section class="panel development-section"><div class="section-head"><h2>Universelle Shards kombinieren</h2></div><p>${SHARD_COMBINE_RATIO} Shards einer Seltenheit ergeben 1 Shard der nächsthöheren Seltenheit.</p><div class="development-shard-grid">${RARITIES.slice(0, 3).map((rarity, index) => `<div class="expedition-shard"><strong>${rarity.label}: ${integer(game.expedition.shards[rarity.id])}</strong>${index < 2 ? `<button class="button button-outline" data-shard-combine="${rarity.id}" ${game.expedition.shards[rarity.id] < SHARD_COMBINE_RATIO ? 'disabled' : ''}>${SHARD_COMBINE_RATIO} zu 1 ${RARITIES[index + 1].label}</button>` : ''}</div>`).join('')}</div></section>`;
   }
   function renderHub() {
     const el = $('#hub-content');
@@ -2100,7 +2127,7 @@
   function renderExpeditionJobs() {
     const el = $('#expedition-jobs-content');
     const types = [
-      { kind: 'character', label: 'Charakteraufträge', icon: '♙' },
+      { kind: 'character', label: 'Fahrzeugkartenaufträge', icon: '▰' },
       { kind: 'material', label: 'Materialaufträge', icon: '▣' }
     ];
     const pending = game.expedition.jobs;
@@ -2321,7 +2348,7 @@
     if (!region?.endlessUnlocked || !expeditionRegionOpen(index)) return false;
     const stageRows = EXPEDITION_STAGE_WEIGHTS[index].map((chance, tier) => `<span>Stufe ${tier + 1}: ${money(chance * 100)} %</span>`).join(' · ');
     $('#expedition-draw-title').textContent = `${EXPEDITION_REGIONS[index]} · Endlosexpedition`;
-    $('#expedition-draw-content').innerHTML = `<p><strong>${integer(game.expedition.points)} / ${integer(expeditionCapacity())} Expeditionspunkte</strong></p><p>${index < 3 ? `Pro Auslosung: 2 % direkt ${EXPEDITION_CHARACTERS[index].name}; sonst ein Auftrag aus dem regionalen Pool.` : 'Pro Auslosung: ein Auftrag aus dem regionalen Pool. Epic- und Legendary-Figuren sind hier nicht erhältlich.'}</p><div class="expedition-draw-chances">${EXPEDITION_JOB_WEIGHTS.map(item => `<div><span>${expeditionJobLabel(item.kind)}</span><strong>${money(item.chance * 100)} %</strong></div>`).join('')}</div><p>${index < 3 ? `Bei Charakteraufträgen: ${money([.35, .20, .12][index] * 100)} % Grundchance auf ${EXPEDITION_CHARACTERS[index].name} beim Abschluss.` : 'Charakteraufträge dieser Region geben Shards, aber keinen direkten Figurenfund.'}</p><p>Auftragsstufen in dieser Region: ${stageRows}. Sonder- und Empfehlungsfahrten behalten ihre eigenen Transportwerte.</p><button type="button" class="button button-primary" data-expedition-draw="${index}" ${game.expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Expedition starten · 5 Punkte</button><p>Erhaltene Aufträge bleiben gespeichert. Einen LKW weist du danach separat zu.</p>`;
+    $('#expedition-draw-content').innerHTML = `<p><strong>${integer(game.expedition.points)} / ${integer(expeditionCapacity())} Expeditionspunkte</strong></p><p>Jede Expedition kann eine Fahrzeugkarte dieser Region finden. Duplikate geben 1 Shard derselben Seltenheit.</p><div class="expedition-draw-chances">${EXPEDITION_CARD_CHANCES.map(item => { const card = EXPEDITION_CHARACTERS.find(c => c.region === index && c.rarity === item.rarity); return `<div><span>${card.name} · ${item.rarity}</span><strong>${money(item.chance * 100)} %</strong></div>`; }).join('')}${EXPEDITION_JOB_WEIGHTS.map(item => `<div><span>${expeditionJobLabel(item.kind)}</span><strong>${money(item.chance * 90)} %</strong></div>`).join('')}</div><p>Fahrzeugkartenaufträge geben Shards, aber keine weiteren Karten. Auftragsstufen: ${stageRows}. Sonder- und Empfehlungsfahrten behalten ihre Transportwerte.</p><button type="button" class="button button-primary" data-expedition-draw="${index}" ${game.expedition.points < EXPEDITION_COST ? 'disabled' : ''}>Expedition starten · 5 Punkte</button><p>Erhaltene Aufträge bleiben gespeichert. Einen LKW weist du danach separat zu.</p>`;
     return true;
   }
   function openExpeditionDrawDialog(index) {
@@ -2330,16 +2357,16 @@
   }
   function renderPersonnel() {
     const expedition = game.expedition;
-    const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', loot: 'Charakter-Fundchance' };
-    $('#personnel-slots').innerHTML = expedition.seats.map((id, index) => `<div class="expedition-seat"><strong>Platz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id).name : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${index}">Entfernen</button>` : ''}</div>`).join('');
-    $('#personnel-slot-count').textContent = `${expedition.seats.filter(Boolean).length} / 5 Plätze`;
+    const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', coins: 'Expeditionsmünzen' };
+    $('#personnel-slots').innerHTML = expedition.seats.map((id, index) => `<div class="expedition-seat"><strong>Flottenplatz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id)?.name || 'Unbekannt' : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${index}">Entfernen</button>` : ''}</div>`).join('');
+    $('#personnel-slot-count').textContent = `${expedition.seats.filter(Boolean).length} / 5 Flottenplätze`;
     $('#personnel-cards').innerHTML = EXPEDITION_CHARACTERS.map(c => {
       const card = expedition.characters[c.id];
-      if (!card) return `<article class="personnel-card"><span class="pill pill-gray">${c.rarity}</span><h3>Unbekannt</h3><p>${c.region < 3 ? `${EXPEDITION_REGIONS[c.region]} · Endlosauftrag` : 'Herkunft noch offen'}</p></article>`;
+      if (!card) return `<article class="personnel-card"><span class="pill pill-gray">${c.rarity}</span><h3>Unbekannt</h3><p>${EXPEDITION_REGIONS[c.region]} · Endlosexpedition</p></article>`;
       const tier = card.level < 10 ? c.rarity : null;
       const cost = card.level < 10 ? CHARACTER_LEVEL_COSTS[card.level - 1] : 0;
       const bonus = c.base + (card.level - 1) * c.step;
-      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p><p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Platz ${seat + 1}</button>`).join('')}</div></article>`;
+      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p><p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<div class="expedition-truck-choices">${expedition.seats.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${seat}" ${id === c.id ? 'disabled' : ''}>Flottenplatz ${seat + 1}</button>`).join('')}</div></article>`;
     }).join('');
   }
   function renderCompany() {
@@ -2545,7 +2572,7 @@
     if (target.dataset.expeditionDraw !== undefined) {
       const index = Number(target.dataset.expeditionDraw);
       const found = drawExpeditionJob(index);
-      if (found && renderExpeditionDrawDialog(index)) $('#expedition-draw-content').insertAdjacentHTML('afterbegin', `<p class="expedition-draw-result">Gefunden: ${found === 'directCharacter' ? EXPEDITION_CHARACTERS[index].name : expeditionJobLabel(found)}</p>`);
+      if (found && renderExpeditionDrawDialog(index)) $('#expedition-draw-content').insertAdjacentHTML('afterbegin', `<p class="expedition-draw-result">Gefunden: ${found.startsWith('card:') ? EXPEDITION_CHARACTERS.find(card => card.id === found.slice(5)).name : expeditionJobLabel(found)}</p>`);
     }
     if (target.dataset.expeditionClaim !== undefined) claimExpeditionMission(Number(target.dataset.expeditionClaim));
     if (target.dataset.expeditionDiscover !== undefined) discoverExpeditionPlace(Number(target.dataset.expeditionDiscover));

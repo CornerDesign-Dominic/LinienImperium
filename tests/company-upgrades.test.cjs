@@ -197,7 +197,7 @@ legacy.orders.push({ id: 'OLD-REWARD', category: 'national', kind: 'normal', sta
 const oldTimer = legacy.nextAutoRefreshAt;
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.company.transportUpgrades.national.premiumLevel, 25);
 assert.equal(migrated.company.transportUpgrades.national.volumeLevel, 20);
 assert.equal(migrated.company.transportUpgrades.national.rangeLevel, 40);
@@ -214,7 +214,7 @@ previous.company.transportUpgrades.international.rangeLevel = 12;
 previous.orders.push({ id: 'PENDING-OLD', category: 'national', kind: 'normal', status: 'completed', completionReward: { coins: 0, gears: {}, companyItems: 2, claimedAt: null } });
 storage.set('frachtwerk-save-v2', JSON.stringify(previous));
 const changed = api.loadGame();
-assert.equal(changed.version, 42);
+assert.equal(changed.version, 43);
 assert.equal(changed.inventory.companyItems, 7);
 assert.equal(changed.inventory.companyItemTkmRemainder, 0, 'no retrospective ton-kilometer progress');
 assert.equal(changed.company.transportUpgrades.international.rangeLevel, 12);

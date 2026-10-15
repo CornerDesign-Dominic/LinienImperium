@@ -22,7 +22,7 @@ api.mute();
 const state = api.newGame('hamburg');
 api.setGame(state);
 const starter = state.trucks[0];
-assert.equal(state.version, 42);
+assert.equal(state.version, 43);
 assert.equal(api.saleBlockReason(starter), null);
 assert.equal(api.saleQuote(starter).coins, 23750, 'free starter uses the current model price');
 assert.equal(api.openSaleDialog(starter.id), true);
@@ -104,7 +104,7 @@ old.orders = [
 ];
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.orders.length, 3, 'active and completed orders are retained');
 assert.equal(migrated.trucks[0].purchasePrice, null);
 assert.equal(migrated.trucks[0].kmDriven, 400);

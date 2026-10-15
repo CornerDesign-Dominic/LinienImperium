@@ -54,7 +54,7 @@ old.nextAutoRefreshAt = Date.now() + 15 * 60 * 1000;
 storage.set('frachtwerk-save-v2', JSON.stringify(old));
 const migrated = api.loadGame();
 api.setGame(migrated);
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.levelFloor, 50);
 assert.equal(api.levelForXp(migrated.xp, migrated).level, 50);
 assert.equal(api.dispatchCapacity(), 15);

@@ -107,7 +107,7 @@ legacy.orders.push({ id: 'A-999', customer: 'frischgut', kind: 'normal', status:
 legacy.orders.push({ id: 'A-998', customer: 'frischgut', kind: 'normal', status: 'available', volume: 30, baseVolume: 20 });
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.customerTrust.frischgut, 250);
 assert.equal(migrated.customerSkills.frischgut, undefined);
 assert.equal(migrated.orders.find(o => o.id === 'A-999').trustAwarded, true);

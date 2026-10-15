@@ -48,7 +48,7 @@ legacy.stats.employeeSpent = 1000;
 for (let i = 0; i < 6; i++) legacy.trucks.push({ ...legacy.trucks[0], id: `ALT-${i}` });
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.trucks.length, 7, 'existing trucks remain');
 assert.equal(migrated.coins, 11000, 'hire cost refunded once');
 assert.equal(migrated.company.employees, 0);

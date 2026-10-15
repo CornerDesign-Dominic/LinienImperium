@@ -18,7 +18,7 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9,
 
 const state = api.newGame('hamburg');
 api.setGame(state);
-assert.equal(state.version, 42);
+assert.equal(state.version, 43);
 assert.equal(state.coins, 1000);
 assert.equal(state.startingCoins, 1000);
 assert.deepEqual(Array.from(api.TRUCKS, truck => truck.capacity), [1, 1.5, 4, 8.5, 18, 13, 24]);
@@ -85,7 +85,7 @@ previous.orders[0].truckId = previous.trucks[0].id;
 previous.orders[0].tripCargo = 4;
 storage.set('frachtwerk-save-v2', JSON.stringify(previous));
 const updated = api.loadGame();
-assert.equal(updated.version, 42);
+assert.equal(updated.version, 43);
 assert.deepEqual(Array.from(updated.trucks, item => item.capacity), [4, 1.5]);
 assert.equal(updated.orders[0].tripCargo, 4, 'current load fits the new truck capacity');
 assert.equal(api.loadGame().orders[0].tripCargo, 4, 'capacity migration runs only once');
@@ -116,7 +116,7 @@ legacy.orders[0].truckId = truck.id;
 legacy.orders[0].tripCargo = 23;
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.manualRefreshCount, 0);
 assert.equal(migrated.coins, 12800);
 assert.equal(migrated.stats.removedUpgradeRefund, 300);

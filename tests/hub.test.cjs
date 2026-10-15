@@ -24,7 +24,7 @@ api.mute();
 
 const state = api.newGame('hamburg');
 api.setGame(state);
-assert.equal(state.version, 42);
+assert.equal(state.version, 43);
 assert.equal(state.orders.filter(order => order.category === 'city').length, 0);
 assert.equal(state.trucks.length, 2);
 assert.equal(state.trucks[0].tier, 2);
@@ -134,7 +134,7 @@ legacy.orders.push({ id: 'ALT-A', category: 'city', status: 'available' });
 legacy.orders.push({ id: 'ALT-B', category: 'city', status: 'active', truckId: 'ALT-01', volume: 10, delivered: 0, distance: 8, tripCargo: 1, tripStartAt: Date.now() });
 storage.set('frachtwerk-save-v2', JSON.stringify(legacy));
 const migrated = api.loadGame();
-assert.equal(migrated.version, 42);
+assert.equal(migrated.version, 43);
 assert.equal(migrated.orders.some(order => order.id === 'ALT-A'), false);
 assert.equal(migrated.orders.some(order => order.id === 'ALT-B'), true);
 assert.equal(migrated.trucks.some(truck => truck.id === 'ALT-01'), true);
