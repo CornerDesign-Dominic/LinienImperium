@@ -34,7 +34,8 @@ for (const view of views) {
   assert.equal((element('#page-help-content').innerHTML.match(/class="page-help-section"/g) || []).length, sections.length);
 }
 assert.match(context.api.pageHelp('expeditions')[1][1][1], /6,00 %|6 %/);
-assert.match(context.api.pageHelp('special')[1][2][1], /10 t/);
+assert.match(context.api.pageHelp('special')[1][2][1], /1\.000 tkm/);
+assert.match(context.api.pageHelp('special')[1][1][1], /beim Start gespeichert/);
 assert.match(context.api.pageHelp('statistics')[1][0][1], /52,75 g\/tkm/);
 assert.equal(element('#page-help-dialog').open, true);
 console.log('all 14 views have contextual calculations in the shared help dialog: OK');

@@ -98,6 +98,7 @@
   const TRUST_REWARDS = { normal: 10, special: 25, referral: 100 };
   const PROJECT_DEADLINES = { special: 3600000, referral: 3 * 3600000 };
   const OVERTIME_REGEN_MS = 10 * 60000;
+  const OVERTIME_TKM_PER_POINT = 1000;
   const DUAL_WAY_CHANCE = .10;
   const CITY_DISTANCE_MIN = 5;
   const CITY_DISTANCE_MAX = 25;
@@ -1833,7 +1834,8 @@
     const vehicles = projectFleetVehicles(template);
     if (!order || !vehicles) return false;
     order.status = 'active';
-    order.project = { template, startedAt: now, deadlineAt: now + order.deadlineMs, vehicles: vehicles.map(vehicle => ({ ...vehicle, cargo: 0, nextAt: null })) };
+    // Running projects own their values; later template edits and upgrades apply to new projects.
+    order.project = { template, startedAt: now, deadlineAt: now + order.deadlineMs, vehicles: vehicles.map(vehicle => ({ ...vehicle, bonusStats: { ...vehicle.bonusStats }, cargo: 0, nextAt: null })) };
     fillProjectTrips(order, now);
     addEvent(`${order.projectName} ${order.id} mit Flotte ${template + 1} gestartet.`);
     save(); render(); return true;
@@ -1895,6 +1897,13 @@
     if (changed) save();
     return changed;
   }
+  function overtimeDelivery(order, amount) {
+    const remaining = Math.max(0, order.volume - order.delivered);
+    if (!Number.isFinite(order.distance) || order.distance <= 0 || !Number.isFinite(remaining) || remaining <= 0) return { points: 0, tons: 0 };
+    // Only loaded outward kilometres count; the empty return leg does not consume tkm.
+    const points = Math.min(amount, Math.ceil(remaining * order.distance / OVERTIME_TKM_PER_POINT));
+    return { points, tons: Math.min(remaining, points * OVERTIME_TKM_PER_POINT / order.distance) };
+  }
   function spendOvertime(orderId, amount, now = Date.now()) {
     if (![1, 5, 10].includes(amount)) return false;
     const order = game.orders.find(item => item.id === orderId && item.status === 'active' && item.project);
@@ -1902,14 +1911,12 @@
     settleFleetProjects(now);
     if (order.status !== 'active' || now >= order.project.deadlineAt) return false;
     regenerateOvertime(now);
-    if (game.overtimePoints < amount) return false;
-    game.overtimePoints -= amount;
-    let delivered = 0;
-    let bonusHits = 0;
-    for (let i = 0; i < amount; i++) { const hit = Math.random() < .01; delivered += hit ? 11 : 10; if (hit) bonusHits++; }
-    order.delivered = Math.min(order.volume, order.delivered + delivered);
+    const delivery = overtimeDelivery(order, amount);
+    if (!delivery.points || game.overtimePoints < delivery.points) return false;
+    game.overtimePoints -= delivery.points;
+    order.delivered = Math.min(order.volume, order.delivered + delivery.tons);
     if (order.delivered >= order.volume) finishFleetProject(order, now);
-    addEvent(`${amount} Überstundenpunkte: ${tons(delivered)} t sofort geliefert${bonusHits ? ` · ${bonusHits} Bonus` : ''}.`);
+    addEvent(`${delivery.points} Überstundenpunkte: ${tons(delivery.tons)} t sofort geliefert · ${tons(delivery.tons * order.distance)} tkm.`);
     save(); render(); return true;
   }
   function orderDuration(order, truck) {
@@ -2354,7 +2361,7 @@
       return `<button type="button" class="project-template-option" data-project-start="${order.id}:${template}" ${vehicles ? '' : 'disabled'}><strong>Flotte ${template + 1}</strong><small>${vehicles ? `${vehicles.map(vehicle => vehicle.model).join(' · ')}<br>Voraussichtlich ${duration(seconds)} · Frist ${duration(order.deadlineMs / 1000)}${seconds * 1000 > order.deadlineMs ? ' · Überstunden nötig' : ''}` : 'Mindestens eine Karte einsetzen'}</small></button>`;
     }).join('')}</div>` : '';
     const fleetStrip = active ? `<div class="project-fleet-strip">${fleet.map(vehicle => `<span title="${vehicle.model}: ${tons(vehicle.capacity)} t"><strong>${vehicle.symbol}</strong><small>${vehicle.model}<br>${tons(vehicle.capacity)} t</small></span>`).join('')}</div>` : '';
-    const overtime = active ? `<div class="project-overtime"><h3>Überstunden machen</h3><p>1 Punkt liefert 10 t sofort. Pro Punkt besteht 1 % Chance auf 1 t extra. ${integer(game.overtimePoints)} / ${integer(game.overtimeCapacity)} Punkte · 1 Punkt alle 10 Minuten.</p><div class="project-overtime-actions">${[1, 5, 10].map(amount => `<button type="button" class="button button-primary" data-project-overtime="${order.id}:${amount}" ${game.overtimePoints >= amount ? '' : 'disabled'}>${amount} ${amount === 1 ? 'Punkt' : 'Punkte'} · ${amount * 10} t</button>`).join('')}</div></div>` : '';
+    const overtime = active ? `<div class="project-overtime"><h3>Überstunden machen</h3><p>1 Punkt liefert ${integer(OVERTIME_TKM_PER_POINT)} tkm sofort: Tonnen × beladene Kilometer. Bei ${order.distance} km sind das bis zu ${tons(OVERTIME_TKM_PER_POINT / order.distance)} t je Punkt. ${integer(game.overtimePoints)} / ${integer(game.overtimeCapacity)} Punkte · 1 Punkt alle ${OVERTIME_REGEN_MS / 60000} Minuten. Zum Abschluss werden höchstens die noch nötigen ganzen Punkte verbraucht; ungenutzte Restleistung des letzten Punkts verfällt.</p><div class="project-overtime-actions">${[1, 5, 10].map(amount => { const delivery = overtimeDelivery(order, amount); return `<button type="button" class="button button-primary" data-project-overtime="${order.id}:${amount}" ${delivery.points && game.overtimePoints >= delivery.points ? '' : 'disabled'}>${delivery.points} ${delivery.points === 1 ? 'Punkt' : 'Punkte'} · ${tons(delivery.tons)} t</button>`; }).join('')}</div></div>` : '';
     const deadlineText = active ? duration(remaining / 1000) : order.status === 'failed' ? 'Abgelaufen' : order.status === 'completed' ? 'Geschafft' : duration(order.deadlineMs / 1000);
     const fleetTimeText = active ? duration((estimated - now) / 1000) : order.status === 'completed' ? 'Geliefert' : order.status === 'failed' ? 'Nicht geschafft' : 'Vorlage wählen';
     const completed = order.status === 'completed' && !order.completionReward?.claimedAt ? `<button type="button" class="button button-primary" data-claim-order="${order.id}">Belohnung einsammeln</button>` : '';
@@ -2708,8 +2715,8 @@
       ]],
       special: ['Großaufträge', [
         ['Fund und Umfang', `<p>Normale Stammkundenaufträge finden einen Sonderauftrag mit ${percent(SPECIAL_CHANCES.national.award)} im Regionalverkehr oder ${percent(SPECIAL_CHANCES.international.award)} im Fernverkehr, jeweils plus Kundenfähigkeit. Expeditionen geben absolut ${percent(EXPEDITION_JOB_WEIGHTS[2].chance * .9)} Sonderaufträge und ${percent(EXPEDITION_JOB_WEIGHTS[3].chance * .9)} Empfehlungsprojekte pro Auslosung. Umfang Sonderauftrag: <code>${projectTons('special')}</code>, <code>${projectKm('special')}</code>; Empfehlungsprojekt: <code>${projectTons('referral')}</code>, <code>${projectKm('referral')}</code>. Der Regionsindex ist 0 bis 4.</p>`],
-        ['Frist und Flotte', `<p>Sonderauftrag: ${PROJECT_DEADLINES.special / 60000} Minuten Frist. Empfehlungsprojekt: ${PROJECT_DEADLINES.referral / 3600000} Stunden. Eine der drei Flottenvorlagen fährt mit 1 bis 5 Karten; jedes Fahrzeug hat eigene Nutzlast und eigenes Tempo. Die Prognose simuliert alle noch nötigen Touren. Eine Karte darf parallel in mehreren Projekten und im Fuhrpark fahren. Bei Fristablauf ohne vollständige Lieferung scheitert der Auftrag ohne Abschlussbelohnung.</p>`],
-        ['Überstunden und Beute', `<p>Überstunden: 1, 5 oder 10 Punkte je Klick. Pro Punkt werden sofort 10 t geliefert; unabhängig je Punkt besteht ${percent(.01)} Chance auf 1 t zusätzlich. Regeneration: 1 Punkt je ${OVERTIME_REGEN_MS / 60000} Minuten bis zum persönlichen Maximum. Nach erfolgreichem Abschluss wird die Belohnung abgeholt. Modulchance: Sonderauftrag ${percent(SPECIAL_CHANCES.national.module)} regional / ${percent(SPECIAL_CHANCES.international.module)} fern; Empfehlungsprojekt ${percent(SPECIAL_CHANCES.national.referralModule)} / ${percent(SPECIAL_CHANCES.international.referralModule)}. Erfolgreiche Sonderaufträge finden zusätzlich mit ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)} plus Kundenfähigkeit ein Empfehlungsprojekt.</p>`]
+        ['Frist und Flotte', `<p>Sonderauftrag: ${PROJECT_DEADLINES.special / 60000} Minuten Frist. Empfehlungsprojekt: ${PROJECT_DEADLINES.referral / 3600000} Stunden. Eine der drei Flottenvorlagen fährt mit 1 bis 5 Karten; jedes Fahrzeug hat eigene Nutzlast und eigenes Tempo. Die Prognose simuliert alle noch nötigen Touren. Zusammensetzung, Kapazität, Geschwindigkeitsrang und Kartenboni werden beim Start gespeichert. Spätere Umbauten oder Verbesserungen gelten nur für neue Großaufträge. Eine Karte darf parallel in mehreren Projekten und im Fuhrpark fahren. Bei Fristablauf ohne vollständige Lieferung scheitert der Auftrag ohne Abschlussbelohnung.</p>`],
+        ['Überstunden und Beute', `<p>Überstunden: 1, 5 oder 10 Punkte je Klick. Pro Punkt werden sofort ${integer(OVERTIME_TKM_PER_POINT)} tkm geliefert: <code>Tonnen = Punkte × ${OVERTIME_TKM_PER_POINT} / einfache Strecke</code>. Die leere Rückfahrt zählt nicht. Es gibt keinen Zufallsbonus. Zum Abschluss werden nur die noch nötigen ganzen Punkte verbraucht; Restleistung des letzten Punkts verfällt. Regeneration: 1 Punkt je ${OVERTIME_REGEN_MS / 60000} Minuten bis zum persönlichen Maximum. Nach erfolgreichem Abschluss wird die Belohnung abgeholt. Modulchance: Sonderauftrag ${percent(SPECIAL_CHANCES.national.module)} regional / ${percent(SPECIAL_CHANCES.international.module)} fern; Empfehlungsprojekt ${percent(SPECIAL_CHANCES.national.referralModule)} / ${percent(SPECIAL_CHANCES.international.referralModule)}. Erfolgreiche Sonderaufträge finden zusätzlich mit ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)} plus Kundenfähigkeit ein Empfehlungsprojekt.</p>`]
       ]],
       'expedition-jobs': ['Expeditionsaufträge', [
         ['Fund und Stufen', `<p>Bei jeder Endlosexpedition entfallen absolut ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)} auf einen Fahrzeugkartenauftrag und ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)} auf einen Materialauftrag. Stufe 1/2/3 transportiert ${EXPEDITION_JOB_TONS_PER_TIER}/${EXPEDITION_JOB_TONS_PER_TIER * 2}/${EXPEDITION_JOB_TONS_PER_TIER * 3} t. Die Stufenverteilung hängt von der Region ab; Region 5: ${EXPEDITION_STAGE_WEIGHTS[4].map(percent).join(' / ')}.</p>`],
@@ -2763,7 +2770,7 @@
     const sourceNames = {
       dashboard: 'playerXpForNextLevel, TEST_COINS_GRANT',
       orders: 'BASE_OFFERS, INTERNATIONAL_OFFER_CHANCE, CUSTOMER_OFFER_CHANCE, tourEconomics, manualRefreshCost',
-      special: 'PROJECT_DEADLINES, OVERTIME_REGEN_MS, queueCustomerTrip, spendOvertime, settleFleetProjects',
+      special: 'PROJECT_DEADLINES, OVERTIME_REGEN_MS, OVERTIME_TKM_PER_POINT, queueCustomerTrip, overtimeDelivery, spendOvertime, settleFleetProjects',
       'expedition-jobs': 'EXPEDITION_JOB_WEIGHTS, EXPEDITION_JOB_TONS_PER_TIER, expeditionTransportPlan, awardExpeditionLoot',
       fleet: 'TRUCKS, CATEGORIES, truckSpeed, upgradeTruckCapacity, RANK_GEAR_COSTS',
       dealer: 'TRUCKS, hubCapacity, buyTruck',
