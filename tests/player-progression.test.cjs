@@ -83,6 +83,7 @@ activeOrder(migrated, 'XP-NEW', 'single', 1);
 api.settleTrips(Date.now());
 assert.equal(api.levelForXp(migrated.xp, migrated).level, 51);
 assert.equal(migrated.expedition.points, 67, 'only the newly earned level grants a refill');
+assert.equal(migrated.inventory.overtimeRefills, 1, 'normal transport level-up grants one stored overtime refill');
 assert.equal(api.loadGame().expedition.points, 67, 'refill stays claimed after reload');
 assert.deepEqual([...migrated.pendingLevelUps], [51]);
 assert.equal(migrated.overtimePoints, 100);

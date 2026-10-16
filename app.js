@@ -99,6 +99,11 @@
   const PROJECT_DEADLINES = { special: 3600000, referral: 3 * 3600000 };
   const OVERTIME_REGEN_MS = 10 * 60000;
   const OVERTIME_TKM_PER_POINT = 1000;
+  const OVERTIME_REFILL_POINTS = 100;
+  const PROJECT_BALANCE = {
+    special: { volume: 400, volumePerRegion: 120, distance: 120, distancePerRegion: 25 },
+    referral: { volume: 1100, volumePerRegion: 225, distance: 240, distancePerRegion: 40 }
+  };
   const DUAL_WAY_CHANCE = .10;
   const CITY_DISTANCE_MIN = 5;
   const CITY_DISTANCE_MAX = 25;
@@ -287,7 +292,7 @@
   }
 
   function newGame(startCity = null) {
-    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), overtimePoints: 100, overtimeCapacity: 100, overtimeLastRegenAt: Date.now(), pendingLevelUps: [], inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
+    const state = { version: 43, startCity, company: newCompany(), hubs: [], coins: 1000, startingCoins: 1000, xp: 0, trucks: [], orders: [], customerTrust: {}, customerSkills: {}, expedition: newExpedition(), overtimePoints: 100, overtimeCapacity: 100, overtimeLastRegenAt: Date.now(), pendingLevelUps: [], inventory: { gears: Object.fromEntries(RARITIES.map(rarity => [rarity.id, 0])), capacityModules: 0, pickupHints: 0, supplierContacts: 0, companyItems: 0, companyItemTkmRemainder: 0, overtimeRefills: 0 }, events: [], nextOrder: 1, nextTruck: 1, completed: 0,
       nextAutoRefreshAt: Date.now() + AUTO_REFRESH_MS, manualRefreshCount: 0,
       stats: { trips: 0, tons: 0, km: 0, tonKm: 0, grossRevenue: 0, contractBonusRevenue: 0, expeditionRevenue: 0, operatingCosts: 0, truckSpent: 0, manualRefreshSpent: 0, departmentSpent: 0, offerUpgradeSpent: 0, workshopUpgradeSpent: 0, salesUpgradeSpent: 0, transportUpgradeSpent: 0, hubUpgradeSpent: 0, employeeSpent: 0, employeeRefund: 0, testCoinsGranted: 0, removedUpgradeRefund: 0, removedBranchRefund: 0 } };
     if (startCity) {
@@ -972,6 +977,27 @@
     game.overtimeLastRegenAt = game.overtimePoints >= capacity ? now : game.overtimeLastRegenAt + earned * OVERTIME_REGEN_MS;
     save();
     return true;
+  }
+  function useOvertimeRefill(now = Date.now()) {
+    if (!(game.inventory.overtimeRefills > 0)) return false;
+    regenerateOvertime(now);
+    game.inventory.overtimeRefills--;
+    game.overtimePoints += OVERTIME_REFILL_POINTS;
+    if (game.overtimePoints >= game.overtimeCapacity) game.overtimeLastRegenAt = now;
+    addEvent(`Refill eingelöst: +${OVERTIME_REFILL_POINTS} Überstundenpunkte.`);
+    save(); render(); return true;
+  }
+  function awardTransportXp(xp) {
+    const before = levelForXp(game.xp, game).level;
+    game.xp = round2(game.xp + xp);
+    const after = levelForXp(game.xp, game).level;
+    const levels = after - before;
+    if (levels <= 0) return;
+    game.expedition.points += 50 * levels;
+    game.inventory.overtimeRefills = (game.inventory.overtimeRefills || 0) + levels;
+    game.pendingLevelUps ||= [];
+    for (let level = before + 1; level <= after; level++) game.pendingLevelUps.push(level);
+    addEvent(`Level ${after} erreicht! +${50 * levels} Expeditionspunkte, ${levels} Refill-Paket(e) à ${OVERTIME_REFILL_POINTS} Überstundenpunkte und ${5 * levels} frei verteilbare Punkte.`);
   }
   function spendExpeditionPoints(amount) {
     regenerateExpedition();
@@ -1779,9 +1805,10 @@
       : ['Großauftrag Stadtversorgung', 'Großauftrag Baustellenlogistik', 'Großauftrag Materialbergung', 'Großauftrag Ferntransport', 'Großauftrag Handelsroute'];
     order.projectName = names[region];
     order.projectRegion = region;
-    order.volume = (kind === 'referral' ? 1100 : 400) + region * (kind === 'referral' ? 140 : 60);
+    const balance = PROJECT_BALANCE[kind];
+    order.volume = balance.volume + region * balance.volumePerRegion;
     order.baseVolume = order.volume;
-    order.distance = (kind === 'referral' ? 240 : 120) + region * (kind === 'referral' ? 40 : 25);
+    order.distance = balance.distance + region * balance.distancePerRegion;
     order.routeType = 'single';
     order.deadlineMs = PROJECT_DEADLINES[kind];
     order.status = 'queued';
@@ -1812,6 +1839,14 @@
     for (const vehicle of project.vehicles) {
       if (vehicle.cargo || remaining <= 0) continue;
       vehicle.cargo = Math.min(vehicle.capacity, remaining);
+      vehicle.tripCargo = vehicle.cargo;
+      vehicle.tripDelivered = 0;
+      // Freeze this tour's accounting so partial overtime deliveries receive the same totals.
+      vehicle.tripAccounting = {
+        ...tourEconomics(order, vehicle, vehicle.cargo, order.delivered),
+        xp: vehicle.cargo * (1 + activeCardBonus(vehicle, 'xp') / 100),
+        km: order.distance * drivenLegs(order)
+      };
       remaining -= vehicle.cargo;
       vehicle.nextAt = at + tourSeconds(order, vehicle, vehicle.cargo) * 1000;
     }
@@ -1855,6 +1890,38 @@
     game.completed++;
     addEvent(`${order.projectName} ${order.id} abgeschlossen. Belohnung bereit.`);
   }
+  function bookProjectDelivery(order, vehicle, cargo) {
+    cargo = Math.min(cargo, vehicle.cargo, order.volume - order.delivered);
+    if (cargo <= 0) return;
+    const originalCargo = vehicle.tripCargo || vehicle.cargo;
+    const before = vehicle.tripDelivered || 0;
+    const after = Math.min(originalCargo, before + cargo);
+    const totals = vehicle.tripAccounting || {
+      ...tourEconomics(order, vehicle, originalCargo, order.delivered - before),
+      xp: originalCargo * (1 + activeCardBonus(vehicle, 'xp') / 100),
+      km: order.distance * drivenLegs(order)
+    };
+    const share = value => round2(value * after / originalCargo) - round2(value * before / originalCargo);
+    const revenue = share(totals.revenue), cost = share(totals.cost), km = share(totals.km);
+    game.coins = round2(game.coins + revenue - cost);
+    game.stats.grossRevenue = round2(game.stats.grossRevenue + revenue);
+    game.stats.operatingCosts = round2(game.stats.operatingCosts + cost);
+    game.stats.tons += cargo;
+    game.stats.km = round2(game.stats.km + km);
+    game.stats.tonKm += cargo * order.distance;
+    awardTransportXp(share(totals.xp));
+    order.delivered = Math.min(order.volume, order.delivered + cargo);
+    if (order.volume - order.delivered < 1e-9) order.delivered = order.volume;
+    vehicle.tripDelivered = after;
+    vehicle.cargo = Math.max(0, originalCargo - after);
+    const record = game.trucks.find(item => item.cardId === vehicle.cardId) || game.expedition.characters[vehicle.cardId]?.parkedTruck;
+    if (record) record.kmDriven = round2((record.kmDriven || 0) + km);
+    if (vehicle.cargo < 1e-9) {
+      vehicle.cargo = 0; vehicle.nextAt = null;
+      game.stats.trips++;
+      if (record) record.toursCompleted = (record.toursCompleted || 0) + 1;
+    }
+  }
   function settleFleetProjects(now = Date.now()) {
     let changed = false;
     for (const order of game.orders) {
@@ -1865,25 +1932,7 @@
         if (!vehicle || vehicle.nextAt > Math.min(now, deadline)) break;
         const at = vehicle.nextAt;
         const cargo = Math.min(vehicle.cargo, order.volume - order.delivered);
-        const { revenue, cost } = tourEconomics(order, vehicle, cargo, order.delivered);
-        game.coins = round2(game.coins + revenue - cost);
-        game.stats.grossRevenue = round2(game.stats.grossRevenue + revenue);
-        game.stats.operatingCosts = round2(game.stats.operatingCosts + cost);
-        vehicle.cargo = 0; vehicle.nextAt = null;
-        order.delivered += cargo;
-        const parked = game.trucks.find(item => item.cardId === vehicle.cardId) || game.expedition.characters[vehicle.cardId]?.parkedTruck;
-        if (parked) { parked.kmDriven = (parked.kmDriven || 0) + order.distance * 2; parked.toursCompleted = (parked.toursCompleted || 0) + 1; }
-        game.stats.trips++;
-        game.stats.tons += cargo;
-        game.stats.km += order.distance * 2;
-        game.stats.tonKm += cargo * order.distance;
-        const oldLevel = levelForXp(game.xp, game).level;
-        game.xp = round2(game.xp + cargo * (1 + activeCardBonus(vehicle, 'xp') / 100));
-        const newLevel = levelForXp(game.xp, game).level;
-        if (newLevel > oldLevel) {
-          game.expedition.points += 50 * (newLevel - oldLevel);
-          for (let level = oldLevel + 1; level <= newLevel; level++) game.pendingLevelUps.push(level);
-        }
+        bookProjectDelivery(order, vehicle, cargo);
         changed = true;
         if (order.delivered >= order.volume) { finishFleetProject(order, at); break; }
         fillProjectTrips(order, at);
@@ -1914,7 +1963,15 @@
     const delivery = overtimeDelivery(order, amount);
     if (!delivery.points || game.overtimePoints < delivery.points) return false;
     game.overtimePoints -= delivery.points;
-    order.delivered = Math.min(order.volume, order.delivered + delivery.tons);
+    let remaining = delivery.tons;
+    while (remaining > 1e-9 && order.delivered < order.volume) {
+      const vehicle = order.project.vehicles.filter(item => item.cargo).sort((a, b) => a.nextAt - b.nextAt)[0];
+      if (!vehicle) break;
+      const cargo = Math.min(remaining, vehicle.cargo, order.volume - order.delivered);
+      bookProjectDelivery(order, vehicle, cargo);
+      remaining -= cargo;
+      if (order.delivered < order.volume) fillProjectTrips(order, now);
+    }
     if (order.delivered >= order.volume) finishFleetProject(order, now);
     addEvent(`${delivery.points} Überstundenpunkte: ${tons(delivery.tons)} t sofort geliefert · ${tons(delivery.tons * order.distance)} tkm.`);
     save(); render(); return true;
@@ -1971,11 +2028,10 @@
         const tripMs = tourSeconds(order, truck, cargo) * 1000;
         if (now - order.tripStartAt < tripMs) break;
         const loadedCargo = cargo * paidLegs(order);
-        const beforeLevel = levelForXp(game.xp, game).level;
         const { revenue, cost } = tourEconomics(order, truck, cargo, order.delivered);
         const earnedXp = loadedCargo * (1 + activeCardBonus(truck, 'xp', 'single') / 100);
         game.coins = round2(game.coins + revenue - cost);
-        game.xp = round2(game.xp + earnedXp);
+        awardTransportXp(earnedXp);
         game.stats.trips++;
         game.stats.tons += loadedCargo;
         game.stats.km += order.distance * drivenLegs(order);
@@ -1988,13 +2044,6 @@
         order.tripStartAt += tripMs;
         order.tripCargo = Math.min(truck.capacity, order.volume - order.delivered);
         changed = true;
-        if (levelForXp(game.xp, game).level > beforeLevel) {
-          const levels = levelForXp(game.xp, game).level - beforeLevel;
-          game.expedition.points += 50 * levels;
-          game.pendingLevelUps ||= [];
-          for (let level = beforeLevel + 1; level <= beforeLevel + levels; level++) game.pendingLevelUps.push(level);
-          addEvent(`Level ${levelForXp(game.xp, game).level} erreicht! +${50 * levels} Expeditionspunkte und ${5 * levels} frei verteilbare Punkte.`);
-        }
         if (order.delivered >= order.volume) {
           order.status = 'completed'; order.completedAt = order.tripStartAt; order.tripStartAt = null; order.tripCargo = null;
           if (order.customer && !order.trustAwarded) {
@@ -2213,7 +2262,7 @@
     if (!level) return;
     const remaining = 5 - levelAllocation.expedition - levelAllocation.overtime;
     $('#level-up-title').textContent = `Herzlichen Glückwunsch zu Level ${level}!`;
-    $('#level-up-description').textContent = 'Du erhältst weiterhin 50 Expeditionspunkte. Verteile zusätzlich 5 Punkte dauerhaft auf die beiden Vorräte. Jede Zuweisung erhöht Maximum und aktuellen Vorrat.';
+    $('#level-up-description').textContent = `Du erhältst 50 Expeditionspunkte und ein Refill-Paket für ${OVERTIME_REFILL_POINTS} Überstundenpunkte in den Vorräten. Verteile zusätzlich 5 Punkte dauerhaft auf die beiden Vorräte. Jede Zuweisung erhöht Maximum und aktuellen Vorrat.`;
     $('#level-up-allocation').innerHTML = `<p class="level-up-remaining">Noch ${remaining} von 5 Punkten verteilen</p>${[['expedition', 'Expeditionspunkte', game.expedition.points, expeditionCapacity()], ['overtime', 'Überstundenpunkte', game.overtimePoints ?? 100, game.overtimeCapacity ?? 100]].map(([kind, label, current, capacity]) => `<div class="level-up-row"><span><strong>${label}</strong><small>Aktuell ${integer(current)} / ${integer(capacity)} · nach Zuweisung +${levelAllocation[kind]}</small></span><div class="level-up-stepper"><button type="button" data-level-allocate="${kind}:-1" aria-label="${label} um einen Punkt verringern" ${levelAllocation[kind] ? '' : 'disabled'}>−</button><output>${levelAllocation[kind]}</output><button type="button" data-level-allocate="${kind}:1" aria-label="${label} um einen Punkt erhöhen" ${remaining ? '' : 'disabled'}>+</button></div></div>`).join('')}`;
     $('#confirm-level-up').disabled = remaining !== 0;
   }
@@ -2304,7 +2353,10 @@
     const tripCards = privateTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">⌖</span><div class="inventory-item-info"><strong>Privatabholung</strong><small>${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-private="${order.id}">LKW zuweisen</button>` : ''}</article>`);
     const craftedCards = craftedTrips.map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.status === 'active' ? 'UNTERWEGS' : 'BEREIT'}</span><span class="inventory-item-icon" aria-hidden="true">◎</span><div class="inventory-item-info"><strong>${customerById(order.customer).name}</strong><small>${categoryById(order.category).label} · ${order.id}</small><small>${order.from} → ${order.to}</small><small>${tons(order.volume)} t · ${order.distance} km</small></div>${order.status === 'queued' ? `<button class="button button-primary" data-start-crafted="${order.id}">LKW zuweisen</button>` : ''}</article>`);
     const projectCards = game.orders.filter(order => PROJECT_DEADLINES[order.kind] && order.status === 'queued').map(order => `<article class="inventory-item inventory-trip"><span class="inventory-item-count">${order.kind === 'referral' ? 'EPIC' : 'RARE'}</span><span class="inventory-item-icon" aria-hidden="true">${order.kind === 'referral' ? '★' : '✦'}</span><div class="inventory-item-info"><strong>${order.projectName}</strong><small>${tons(order.volume)} t · ${order.distance} km · Frist ${duration(order.deadlineMs / 1000)}</small></div><button class="button button-primary" data-project-open="${order.id}">Öffnen</button></article>`);
-    const content = section('Materialien', materials.map(itemCard))
+    const refills = game.inventory.overtimeRefills || 0;
+    const refillCards = refills ? [`<article class="inventory-item inventory-trip"><span class="inventory-item-count">${integer(refills)}</span><span class="inventory-item-icon" aria-hidden="true">↻</span><div class="inventory-item-info"><strong>Überstunden-Refill</strong><small>Ein Paket gibt ${OVERTIME_REFILL_POINTS} Überstundenpunkte, auch über das Maximum hinaus.</small></div><button type="button" class="button button-primary" data-use-overtime-refill>1 Paket einlösen · +${OVERTIME_REFILL_POINTS} Punkte</button></article>`] : [];
+    const content = section('Refill-Pakete', refillCards)
+      + section('Materialien', materials.map(itemCard))
       + section('Zahnräder', gears.map(itemCard))
       + section('Großaufträge und Projekte', projectCards)
       + section('Privatabholungen', tripCards)
@@ -2700,11 +2752,11 @@
   function pageHelp(view = currentView) {
     const percent = value => `${money(value * 100)} %`;
     const level = levelForXp(game.xp, game).level;
-    const projectTons = kind => `${kind === 'special' ? 400 : 1100} + Regionsindex × ${kind === 'special' ? 60 : 140} t`;
-    const projectKm = kind => `${kind === 'special' ? 120 : 240} + Regionsindex × ${kind === 'special' ? 25 : 40} km`;
+    const projectTons = kind => `${PROJECT_BALANCE[kind].volume} + Regionsindex × ${PROJECT_BALANCE[kind].volumePerRegion} t`;
+    const projectKm = kind => `${PROJECT_BALANCE[kind].distance} + Regionsindex × ${PROJECT_BALANCE[kind].distancePerRegion} km`;
     const pages = {
       dashboard: ['Dashboard', [
-        ['Spielerlevel', `<p>Transportierte Tonnen geben XP: <code>XP je Tour = gelieferte Tonnen × bezahlte Richtungen × (1 + aktive Karten-XP-Boni / 100)</code> (bei Dual Way also doppelt). Für den nächsten Aufstieg benötigt Level L bis Level 24 <code>100 × L XP</code>, danach <code>4 × L² XP</code>. Aktuell: Level ${level}, nächste Stufe nach ${integer(playerXpForNextLevel(level))} XP ab Beginn dieses Levels.</p><p>Je Aufstieg: sofort 50 Expeditionspunkte sowie 5 dauerhaft verteilbare Punkte für Expeditions- und Überstundenmaximum. Jeder verteilte Punkt füllt den entsprechenden Vorrat ebenfalls um 1.</p>`],
+        ['Spielerlevel', `<p>Transportierte Tonnen geben XP: <code>XP je Tour = gelieferte Tonnen × bezahlte Richtungen × (1 + aktive Karten-XP-Boni / 100)</code> (bei Dual Way also doppelt). Für den nächsten Aufstieg benötigt Level L bis Level 24 <code>100 × L XP</code>, danach <code>4 × L² XP</code>. Aktuell: Level ${level}, nächste Stufe nach ${integer(playerXpForNextLevel(level))} XP ab Beginn dieses Levels.</p><p>Je Aufstieg: sofort 50 Expeditionspunkte, ein speicherbares Refill-Paket für ${OVERTIME_REFILL_POINTS} Überstundenpunkte sowie 5 dauerhaft verteilbare Punkte für Expeditions- und Überstundenmaximum. Jeder verteilte Punkt füllt den entsprechenden Vorrat ebenfalls um 1.</p>`],
         ['Münzen und Testknöpfe', `<p>Tourgewinn = Frachtvergütung − Fahrzeugkosten − Lastkosten. Abschlussprämien werden separat abgeholt. Der Testknopf schreibt ${integer(TEST_COINS_GRANT)} M gut; „Spielstand zurücksetzen“ beginnt einen neuen lokalen Spielstand.</p>`],
         ['Automatischer Fortschritt', '<p>Aufträge, Projekte und Expeditionen laufen nach Uhrzeit weiter. Beim erneuten Öffnen werden fällige Touren und Belohnungen nachberechnet. Der Spielstand liegt im Browser.</p>']
       ]],
@@ -2716,7 +2768,7 @@
       special: ['Großaufträge', [
         ['Fund und Umfang', `<p>Normale Stammkundenaufträge finden einen Sonderauftrag mit ${percent(SPECIAL_CHANCES.national.award)} im Regionalverkehr oder ${percent(SPECIAL_CHANCES.international.award)} im Fernverkehr, jeweils plus Kundenfähigkeit. Expeditionen geben absolut ${percent(EXPEDITION_JOB_WEIGHTS[2].chance * .9)} Sonderaufträge und ${percent(EXPEDITION_JOB_WEIGHTS[3].chance * .9)} Empfehlungsprojekte pro Auslosung. Umfang Sonderauftrag: <code>${projectTons('special')}</code>, <code>${projectKm('special')}</code>; Empfehlungsprojekt: <code>${projectTons('referral')}</code>, <code>${projectKm('referral')}</code>. Der Regionsindex ist 0 bis 4.</p>`],
         ['Frist und Flotte', `<p>Sonderauftrag: ${PROJECT_DEADLINES.special / 60000} Minuten Frist. Empfehlungsprojekt: ${PROJECT_DEADLINES.referral / 3600000} Stunden. Eine der drei Flottenvorlagen fährt mit 1 bis 5 Karten; jedes Fahrzeug hat eigene Nutzlast und eigenes Tempo. Die Prognose simuliert alle noch nötigen Touren. Zusammensetzung, Kapazität, Geschwindigkeitsrang und Kartenboni werden beim Start gespeichert. Spätere Umbauten oder Verbesserungen gelten nur für neue Großaufträge. Eine Karte darf parallel in mehreren Projekten und im Fuhrpark fahren. Bei Fristablauf ohne vollständige Lieferung scheitert der Auftrag ohne Abschlussbelohnung.</p>`],
-        ['Überstunden und Beute', `<p>Überstunden: 1, 5 oder 10 Punkte je Klick. Pro Punkt werden sofort ${integer(OVERTIME_TKM_PER_POINT)} tkm geliefert: <code>Tonnen = Punkte × ${OVERTIME_TKM_PER_POINT} / einfache Strecke</code>. Die leere Rückfahrt zählt nicht. Es gibt keinen Zufallsbonus. Zum Abschluss werden nur die noch nötigen ganzen Punkte verbraucht; Restleistung des letzten Punkts verfällt. Regeneration: 1 Punkt je ${OVERTIME_REGEN_MS / 60000} Minuten bis zum persönlichen Maximum. Nach erfolgreichem Abschluss wird die Belohnung abgeholt. Modulchance: Sonderauftrag ${percent(SPECIAL_CHANCES.national.module)} regional / ${percent(SPECIAL_CHANCES.international.module)} fern; Empfehlungsprojekt ${percent(SPECIAL_CHANCES.national.referralModule)} / ${percent(SPECIAL_CHANCES.international.referralModule)}. Erfolgreiche Sonderaufträge finden zusätzlich mit ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)} plus Kundenfähigkeit ein Empfehlungsprojekt.</p>`]
+        ['Überstunden und Beute', `<p>Überstunden: 1, 5 oder 10 Punkte je Klick. Pro Punkt werden sofort ${integer(OVERTIME_TKM_PER_POINT)} tkm geliefert: <code>Tonnen = Punkte × ${OVERTIME_TKM_PER_POINT} / einfache Strecke</code>. Die leere Rückfahrt zählt nicht. Es gibt keinen Zufallsbonus. Zum Abschluss werden nur die noch nötigen ganzen Punkte verbraucht; Restleistung des letzten Punkts verfällt. Regeneration: 1 Punkt je ${OVERTIME_REGEN_MS / 60000} Minuten bis zum persönlichen Maximum. Passive und per Überstunden gelieferte Tonnen werden gleich abgerechnet: Frachtvergütung, Betriebskosten, XP und Transportstatistik einschließlich der gespeicherten Kartenboni. Jede Tour wird insgesamt nur einmal verbucht; bei Teillieferungen anteilig. Nach erfolgreichem Abschluss wird die Belohnung abgeholt. Modulchance: Sonderauftrag ${percent(SPECIAL_CHANCES.national.module)} regional / ${percent(SPECIAL_CHANCES.international.module)} fern; Empfehlungsprojekt ${percent(SPECIAL_CHANCES.national.referralModule)} / ${percent(SPECIAL_CHANCES.international.referralModule)}. Erfolgreiche Sonderaufträge finden zusätzlich mit ${percent(SPECIAL_CHANCES.national.referral)} / ${percent(SPECIAL_CHANCES.international.referral)} plus Kundenfähigkeit ein Empfehlungsprojekt.</p>`]
       ]],
       'expedition-jobs': ['Expeditionsaufträge', [
         ['Fund und Stufen', `<p>Bei jeder Endlosexpedition entfallen absolut ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)} auf einen Fahrzeugkartenauftrag und ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)} auf einen Materialauftrag. Stufe 1/2/3 transportiert ${EXPEDITION_JOB_TONS_PER_TIER}/${EXPEDITION_JOB_TONS_PER_TIER * 2}/${EXPEDITION_JOB_TONS_PER_TIER * 3} t. Die Stufenverteilung hängt von der Region ab; Region 5: ${EXPEDITION_STAGE_WEIGHTS[4].map(percent).join(' / ')}.</p>`],
@@ -2737,7 +2789,7 @@
         ['Ausbau', `<p>Nächste Vertriebsstufe N kostet <code>5 × N Lieferantenkontakte</code>, <code>1 + abrunden((N−1)/25) Firmenausbau-Items</code> und <code>500 + 50 × N M</code>. Bauzeit = <code>12 × N Stunden</code>; maximale Stufe ${HUB_MAX_SALES_LEVEL}.</p>`]
       ]],
       inventory: ['Vorräte', [
-        ['Was hier liegt', '<p>Zahnräder verbessern Fahrzeugränge; Kapazitätsmodule erhöhen Nutzlast. Abholhinweise werden zu Privatabholungen verarbeitet, Lieferantenkontakte bauen den Stadthub aus. Firmenausbau-Items dienen Firmenausbauten und Kundenaufträgen. Gefundene Großaufträge bleiben hier bis zum Start als Einträge sichtbar.</p>'],
+        ['Was hier liegt', '<p>Zahnräder verbessern Fahrzeugränge; Kapazitätsmodule erhöhen Nutzlast. Abholhinweise werden zu Privatabholungen verarbeitet, Lieferantenkontakte bauen den Stadthub aus. Firmenausbau-Items dienen Firmenausbauten und Kundenaufträgen. Gefundene Großaufträge bleiben hier bis zum Start als Einträge sichtbar. Pro Level-up erhältst du ein speicherbares Überstunden-Refill für 100 Punkte. Einlösen ist auch über dem Vorratsmaximum möglich; oberhalb des Maximums pausiert die natürliche Regeneration.</p>'],
         ['Erzeugung und Zufall', `<p>Für je ${integer(COMPANY_BALANCE.tkmPerItem)} tatsächlich beladene Tonnenkilometer normaler Regional- und Fernaufträge entsteht 1 Firmenausbau-Item; der Restzähler bleibt erhalten. Material-Expeditionsaufträge geben mit ${percent(COMPANY_BALANCE.materialItemChance)} zusätzlich 1/2/3 Items nach Auftragsstufe und mit ${percent(.003)} ein Kapazitätsmodul. Stadt-Hub-Zyklen erzeugen 8–12 Abholhinweise.</p>`],
         ['Zahnradloot', '<p>Je 100 tkm: Common 40 % für 1 und weitere 20 % für 2 Zahnräder. Je 1.000 tkm: Uncommon 18 % für 1 und weitere 7 % für 2. Bei Kundenaufträgen: Rare 8 % für 1. Teilblöcke werden anteilig ausgewürfelt. Sonder- und Empfehlungsprojekte können zusätzlich Epic oder Legendär geben.</p>']
       ]],
@@ -2770,12 +2822,12 @@
     const sourceNames = {
       dashboard: 'playerXpForNextLevel, TEST_COINS_GRANT',
       orders: 'BASE_OFFERS, INTERNATIONAL_OFFER_CHANCE, CUSTOMER_OFFER_CHANCE, tourEconomics, manualRefreshCost',
-      special: 'PROJECT_DEADLINES, OVERTIME_REGEN_MS, OVERTIME_TKM_PER_POINT, queueCustomerTrip, overtimeDelivery, spendOvertime, settleFleetProjects',
+      special: 'PROJECT_BALANCE, PROJECT_DEADLINES, OVERTIME_REGEN_MS, OVERTIME_TKM_PER_POINT, queueCustomerTrip, overtimeDelivery, spendOvertime, bookProjectDelivery, settleFleetProjects',
       'expedition-jobs': 'EXPEDITION_JOB_WEIGHTS, EXPEDITION_JOB_TONS_PER_TIER, expeditionTransportPlan, awardExpeditionLoot',
       fleet: 'TRUCKS, CATEGORIES, truckSpeed, upgradeTruckCapacity, RANK_GEAR_COSTS',
       dealer: 'TRUCKS, hubCapacity, buyTruck',
       hub: 'HUB_CYCLE_MS, HUB_WORK_SECONDS, HUB_ROUTE_KM, hubHourlyCapacity, hubSalesPercent',
-      inventory: 'COMPANY_BALANCE, rollGearLoot, awardExpeditionLoot',
+      inventory: 'COMPANY_BALANCE, OVERTIME_REFILL_POINTS, useOvertimeRefill, awardTransportXp, rollGearLoot, awardExpeditionLoot',
       development: 'PRIVATE_PICKUP_HINT_COST, SHARD_COMBINE_RATIO, CHARACTER_LEVEL_COSTS',
       company: 'DEPARTMENTS, TRANSPORT_UPGRADE_LIMITS, COMPANY_BALANCE, transportRules',
       expeditions: 'EXPEDITION_CARD_CHANCES, EXPEDITION_JOB_WEIGHTS, EXPEDITION_STAGE_WEIGHTS, expeditionDuration',
@@ -2884,6 +2936,7 @@
     if (target.dataset.openSale) openSaleDialog(target.dataset.openSale);
     if (target.dataset.projectOpen) { selectedProjectId = target.dataset.projectOpen; setView('special'); renderSpecialTrips(); }
     if (target.dataset.projectBack !== undefined) { selectedProjectId = null; renderSpecialTrips(); }
+    if (target.hasAttribute('data-use-overtime-refill')) { useOvertimeRefill(); return; }
     if (target.dataset.projectStart) { const [id, template] = target.dataset.projectStart.split(':'); startFleetProject(id, Number(template)); }
     if (target.dataset.projectOvertime) { const [id, amount] = target.dataset.projectOvertime.split(':'); spendOvertime(id, Number(amount)); }
     if (target.dataset.expeditionJobGroup) { selectedExpeditionJobGroup = target.dataset.expeditionJobGroup; renderExpeditionJobs(); }
