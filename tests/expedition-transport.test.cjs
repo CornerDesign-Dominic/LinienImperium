@@ -75,5 +75,5 @@ assert.ok(Math.abs(rankedDuration / base - 1 / 1.05) < 1e-9);
 state.expedition.characters.logistiker = { level: 1, progress: 0 };
 state.expedition.seats[0] = 'logistiker';
 const bonused = api.expeditionTransportPlan(job, small, 0).tours.at(-1).endsAt;
-assert.ok(Math.abs(bonused / base - .9) < 1e-9);
+assert.equal(bonused, base, 'fleet cards no longer change expedition durations');
 console.log('expedition transport volume, loaded and empty legs, speed, bonus, progress and offline settlement: OK');

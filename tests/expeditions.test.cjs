@@ -111,7 +111,7 @@ api.openExpeditionJobDialog(0, jobId);
 assert.equal(element('#assign-dialog').open, true);
 assert.match(element('#assign-description').textContent, /20 t · 30 km hin und 30 km zurück/);
 assert.match(element('#assign-vehicles').innerHTML, new RegExp(`data-choose-expedition="0:${jobId}:KARTE-navigator"`));
-assert.match(element('#assign-vehicles').innerHTML, /5 Touren · ca\. 5 Min\./);
+assert.match(element('#assign-vehicles').innerHTML, /5 Touren · ca\. 4 Min\./);
 assert.equal(api.startExpeditionMission(0, 'endless', 'KARTE-navigator', jobId), true);
 api.renderExpeditionJobs();
 assert.match(element('#expedition-jobs-content').innerHTML, /LKW KARTE-navigator/);

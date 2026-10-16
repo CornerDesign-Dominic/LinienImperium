@@ -21,7 +21,7 @@ assert.equal(api.dispatchCapacity(), 10);
 assert.equal(api.hubCapacity(), 1);
 assert.equal(state.trucks.length, 1);
 assert.equal(state.trucks[0].cardId, 'navigator');
-assert.equal(api.operatingCostPerKm(state.trucks[0]), .65);
+assert.equal(api.operatingCostPerKm(state.trucks[0]), .6435, 'the starter card reduces its own running cost by 1%');
 state.coins = 10000;
 api.unlockDepartment('hr');
 assert.equal(state.company.departments.hr, undefined, 'new HR unlocks are paused');

@@ -63,22 +63,23 @@
   const EXPEDITION_REGIONS = ['Region 1', 'Region 2', 'Region 3', 'Region 4', 'Region 5'];
   // Die IDs der bisherigen fünf Karten bleiben für vorhandene Spielstände erhalten.
   const EXPEDITION_CHARACTERS = [
-    { id: 'navigator', name: 'Kurierwagen', rarity: 'common', region: 0, bonus: 'regen', base: 2, step: 1, vehicleTier: 2 },
-    { id: 'r1_uncommon', name: 'Rallye-Transporter', rarity: 'uncommon', region: 0, bonus: 'regen', base: 3, step: 1, vehicleTier: 3 },
-    { id: 'r1_rare', name: 'Pfadfinder-LKW', rarity: 'rare', region: 0, bonus: 'regen', base: 4, step: 2, vehicleTier: 5 },
-    { id: 'r2_common', name: 'Versorgungswagen', rarity: 'common', region: 1, bonus: 'capacity', base: 3, step: 1, vehicleTier: 2 },
-    { id: 'disponent', name: 'Vorrats-LKW', rarity: 'uncommon', region: 1, bonus: 'capacity', base: 5, step: 2, vehicleTier: 5 },
-    { id: 'r2_rare', name: 'Expeditionsträger', rarity: 'rare', region: 1, bonus: 'capacity', base: 7, step: 3, vehicleTier: 4 },
-    { id: 'r3_common', name: 'Schrottsammler', rarity: 'common', region: 2, bonus: 'shards', base: 2, step: 1, vehicleTier: 3 },
-    { id: 'r3_uncommon', name: 'Bergungs-LKW', rarity: 'uncommon', region: 2, bonus: 'shards', base: 3, step: 1, vehicleTier: 5 },
-    { id: 'forscherin', name: 'Fundort-Scanner', rarity: 'rare', region: 2, bonus: 'shards', base: 5, step: 2, vehicleTier: 4 },
-    { id: 'r4_common', name: 'Geländetransporter', rarity: 'common', region: 3, bonus: 'duration', base: 4, step: 1, vehicleTier: 3 },
-    { id: 'r4_uncommon', name: 'Schnellfrachter', rarity: 'uncommon', region: 3, bonus: 'duration', base: 7, step: 2, vehicleTier: 4 },
-    { id: 'logistiker', name: 'Turbo-Konvoi', rarity: 'rare', region: 3, bonus: 'duration', base: 10, step: 2, vehicleTier: 6 },
-    { id: 'r5_common', name: 'Handelswagen', rarity: 'common', region: 4, bonus: 'coins', base: 5, step: 1, vehicleTier: 5 },
-    { id: 'r5_uncommon', name: 'Werttransporter', rarity: 'uncommon', region: 4, bonus: 'coins', base: 10, step: 2, vehicleTier: 4 },
-    { id: 'pionierin', name: 'Goldkonvoi', rarity: 'rare', region: 4, bonus: 'coins', base: 15, step: 3, vehicleTier: 6 }
+    { id: 'navigator', name: 'Kurierwagen', rarity: 'common', region: 0, scope: 'self', stat: 'cost', vehicleTier: 2 },
+    { id: 'r1_uncommon', name: 'Rallye-Transporter', rarity: 'uncommon', region: 0, scope: 'garage', stat: 'speed', vehicleTier: 3 },
+    { id: 'r1_rare', name: 'Pfadfinder-LKW', rarity: 'rare', region: 0, scope: 'fleet', stat: 'speed', vehicleTier: 5 },
+    { id: 'r2_common', name: 'Versorgungswagen', rarity: 'common', region: 1, scope: 'self', stat: 'speed', vehicleTier: 2 },
+    { id: 'disponent', name: 'Vorrats-LKW', rarity: 'uncommon', region: 1, scope: 'garage', stat: 'cost', vehicleTier: 5 },
+    { id: 'r2_rare', name: 'Expeditionsträger', rarity: 'rare', region: 1, scope: 'fleet', stat: 'cost', vehicleTier: 4 },
+    { id: 'r3_common', name: 'Schrottsammler', rarity: 'common', region: 2, scope: 'single', stat: 'pay', vehicleTier: 3 },
+    { id: 'r3_uncommon', name: 'Bergungs-LKW', rarity: 'uncommon', region: 2, scope: 'garage', stat: 'pay', vehicleTier: 5 },
+    { id: 'forscherin', name: 'Fundort-Scanner', rarity: 'rare', region: 2, scope: 'fleet', stat: 'pay', vehicleTier: 4 },
+    { id: 'r4_common', name: 'Geländetransporter', rarity: 'common', region: 3, scope: 'self', stat: 'cost', vehicleTier: 3 },
+    { id: 'r4_uncommon', name: 'Schnellfrachter', rarity: 'uncommon', region: 3, scope: 'single', stat: 'xp', vehicleTier: 4 },
+    { id: 'logistiker', name: 'Turbo-Konvoi', rarity: 'rare', region: 3, scope: 'fleet', stat: 'speed', vehicleTier: 6 },
+    { id: 'r5_common', name: 'Handelswagen', rarity: 'common', region: 4, scope: 'single', stat: 'xp', vehicleTier: 5 },
+    { id: 'r5_uncommon', name: 'Werttransporter', rarity: 'uncommon', region: 4, scope: 'garage', stat: 'xp', vehicleTier: 4 },
+    { id: 'pionierin', name: 'Goldkonvoi', rarity: 'rare', region: 4, scope: 'fleet', stat: 'xp', vehicleTier: 6 }
   ];
+  const CARD_BONUS_SCALING = { common: { base: 1, step: .5 }, uncommon: { base: 3, step: 1 }, rare: { base: 5, step: 1.5 } };
   const CHARACTER_LEVEL_COSTS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
   const OLD_CHARACTER_COSTS = { common: 5, uncommon: 10, rare: 20, epic: 30, legendary: 40 };
   const SHARD_COMBINE_RATIO = 10;
@@ -946,20 +947,13 @@
     if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     return stored;
   }
-  function expeditionBonus(kind) {
-    return game.expedition.seats.reduce((sum, id) => {
-      const character = EXPEDITION_CHARACTERS.find(c => c.id === id);
-      const level = game.expedition.characters[id]?.level || 0;
-      return sum + (character?.bonus === kind && level ? character.base + (level - 1) * character.step : 0);
-    }, 0);
-  }
   function expeditionCapacity() {
-    return 50 + (game.expedition.levelCapacityBonus || 0) + game.expedition.regions.reduce((sum, region) => sum + region.deliveries.filter(Boolean).length, 0) + expeditionBonus('capacity');
+    return 50 + (game.expedition.levelCapacityBonus || 0) + game.expedition.regions.reduce((sum, region) => sum + region.deliveries.filter(Boolean).length, 0);
   }
   function regenerateExpedition(now = Date.now()) {
     const expedition = game.expedition;
     if (expedition.points >= expeditionCapacity()) { expedition.lastRegenAt = now; return false; }
-    const interval = EXPEDITION_REGEN_MS / (1 + Math.min(20, expeditionBonus('regen')) / 100);
+    const interval = EXPEDITION_REGEN_MS;
     const earned = Math.floor(Math.max(0, now - expedition.lastRegenAt) / interval);
     if (!earned) return false;
     expedition.points = Math.min(expeditionCapacity(), expedition.points + earned);
@@ -1011,7 +1005,7 @@
   function expeditionTruckFree(id) { return freeTrucks().some(truck => truck.id === id && truck.tier >= 2); }
   function expeditionDuration(index, kind, place = 0) {
     const hours = kind === 'delivery' ? (2 + index * 8 + place * 3) : (8 + index * 40);
-    return hours * 3600000 * (1 - Math.min(40, expeditionBonus('duration')) / 100);
+    return hours * 3600000;
   }
   function drawExpeditionJob(index) {
     const region = game.expedition.regions[index];
@@ -1056,14 +1050,13 @@
   function expeditionJobVolume(entry) { return expeditionJobTier(entry) * EXPEDITION_JOB_TONS_PER_TIER; }
   function expeditionTransportPlan(job, truck, startedAt = Date.now()) {
     const volume = expeditionJobVolume(job);
-    const durationFactor = 1 - Math.min(40, expeditionBonus('duration')) / 100;
     const route = { distance: EXPEDITION_JOB_DISTANCE, routeType: 'single' };
     const tours = [];
     let remaining = volume;
     let nextAt = startedAt;
     while (remaining > 0) {
       const cargo = Math.min(truck.capacity, remaining);
-      const endsAt = nextAt + tourSeconds(route, truck, cargo) * durationFactor * 1000;
+      const endsAt = nextAt + tourSeconds(route, truck, cargo) * 1000;
       tours.push({ cargo, startsAt: nextAt, endsAt });
       remaining = round2(remaining - cargo);
       nextAt = endsAt;
@@ -1095,13 +1088,13 @@
   function awardExpeditionLoot(mission) {
     const expedition = game.expedition;
     const region = mission.region;
-    const coins = Math.round((mission.lootKind === 'character' ? 5 : 15) * (region + 1) * (1 + expeditionBonus('coins') / 100));
+    const coins = Math.round((mission.lootKind === 'character' ? 5 : 15) * (region + 1));
     game.coins = round2(game.coins + coins);
     game.stats.expeditionRevenue = round2((game.stats.expeditionRevenue || 0) + coins);
     const reward = [`${coins} M`];
     // Jede Shardrolle nutzt den gespeicherten Auftragsrang; Stufe 1/2 schließen höhere Seltenheiten aus.
     if (mission.lootKind === 'character' || Math.random() < .2) {
-      const amount = 1 + (Math.random() < .2 + expeditionBonus('shards') / 100 ? 1 : 0);
+      const amount = 1 + (Math.random() < .2 ? 1 : 0);
       for (let i = 0; i < amount; i++) {
         const rarity = rollExpeditionShard(expeditionJobTier(mission));
         expedition.shards[rarity]++;
@@ -1261,6 +1254,24 @@
   }
   function truckById(id) { return game.trucks.find(t => t.id === id); }
   function vehicleCardById(id) { return EXPEDITION_CHARACTERS.find(card => card.id === id); }
+  function cardBonusValue(card, level = game.expedition.characters[card.id]?.level || 1) {
+    const scaling = CARD_BONUS_SCALING[card.rarity];
+    return scaling.base + (clamp(level, 1, 10) - 1) * scaling.step;
+  }
+  function cardBonusStats(truck, mode = 'garage') {
+    if (truck.bonusStats) return truck.bonusStats;
+    const stats = { speed: 0, cost: 0, pay: 0, xp: 0 };
+    const own = vehicleCardById(truck.cardId);
+    if (!own) return stats;
+    const add = card => { stats[card.stat] += cardBonusValue(card); };
+    if (own.scope === 'self' || (mode === 'single' && own.scope === 'single')) add(own);
+    if (mode !== 'fleet') for (const parked of game.trucks) {
+      const card = vehicleCardById(parked.cardId);
+      if (card?.scope === 'garage') add(card);
+    }
+    return stats;
+  }
+  function activeCardBonus(truck, stat, mode = 'garage') { return cardBonusStats(truck, mode)[stat]; }
   function createCardTruck(card) {
     const model = TRUCKS[card.vehicleTier];
     return { id: `KARTE-${card.id}`, cardId: card.id, tier: card.vehicleTier, model: card.name, capacity: model.capacity, symbol: model.symbol, rarityLevel: 0, purchasePrice: null, kmDriven: 0, toursCompleted: 0, ordersCompleted: 0 };
@@ -1493,7 +1504,7 @@
     addEvent(`${truck.id} startet Privatabholung ${order.id}.`);
     save(); $('#assign-dialog').close(); render();
   }
-  function operatingCostPerKm(truck) { const company = companyFor(); return TRUCKS[truck.tier].emptyCostPerKm - (company.departments.workshop ? company.workshopLevel : 0) * .001; }
+  function operatingCostPerKm(truck) { const company = companyFor(); return Math.max(0, (TRUCKS[truck.tier].emptyCostPerKm - (company.departments.workshop ? company.workshopLevel : 0) * .001) * (1 - Math.min(80, activeCardBonus(truck, 'cost')) / 100)); }
   function vehicleCostRange() {
     const trucks = game.trucks.length ? game.trucks : TRUCKS.map((_, tier) => ({ tier }));
     const costs = trucks.map(operatingCostPerKm);
@@ -1595,7 +1606,7 @@
   function eligibleFreeTrucks(order) { return freeTrucks().filter(t => canTruckTakeOrder(t, order)); }
   function truckSpeed(truck, cargo = 0) {
     const rarity = Number.isInteger(truck.rarityLevel) ? clamp(truck.rarityLevel, 0, MAX_RARITY_LEVEL) : 0;
-    return SPEED_KM_PER_SECOND * (1 + rarity * RARITY_SPEED_PER_LEVEL) * (1 - cargo * SPEED_LOSS_PER_TON);
+    return SPEED_KM_PER_SECOND * (1 + rarity * RARITY_SPEED_PER_LEVEL) * (1 + activeCardBonus(truck, 'speed') / 100) * (1 - cargo * SPEED_LOSS_PER_TON);
   }
   function speedLabel(speed) { return `${rateMoney(speed)} km/s`; }
   function truckRarity(truck) {
@@ -1629,7 +1640,7 @@
   function tourEconomics(order, truck, cargo, deliveredBefore) {
     const paidTons = paidLegs(order);
     const paySkill = order.customer ? customerSkillLevels(order.customer).pay : 0;
-    const freightRate = order.distance * FREIGHT_PAY_PER_TON_KM * (1 + paySkill * .001);
+    const freightRate = order.distance * FREIGHT_PAY_PER_TON_KM * (1 + paySkill * .001) * (1 + activeCardBonus(truck, 'pay', order.project ? 'fleet' : 'single') / 100);
     const revenue = round2((deliveredBefore + cargo) * paidTons * freightRate) - round2(deliveredBefore * paidTons * freightRate);
     const loadedCost = round2((deliveredBefore + cargo) * paidTons * order.distance * LOAD_COST_PER_TON_KM) - round2(deliveredBefore * paidTons * order.distance * LOAD_COST_PER_TON_KM);
     const distanceCost = round2(order.distance * drivenLegs(order) * operatingCostPerKm(truck));
@@ -1786,7 +1797,13 @@
       const truck = game.trucks.find(item => item.cardId === cardId) || game.expedition.characters[cardId].parkedTruck;
       return { ...truck || createCardTruck(card), cardId };
     });
-    return vehicles.some(vehicle => !vehicle) ? null : vehicles;
+    if (vehicles.some(vehicle => !vehicle)) return null;
+    const fleetBonuses = vehicles.map(vehicle => vehicleCardById(vehicle.cardId)).filter(card => card.scope === 'fleet');
+    return vehicles.map(vehicle => {
+      const stats = cardBonusStats(vehicle, 'fleet');
+      for (const card of fleetBonuses) stats[card.stat] += cardBonusValue(card);
+      return { ...vehicle, bonusStats: stats };
+    });
   }
   function fillProjectTrips(order, at) {
     const project = order.project;
@@ -1859,7 +1876,7 @@
         game.stats.km += order.distance * 2;
         game.stats.tonKm += cargo * order.distance;
         const oldLevel = levelForXp(game.xp, game).level;
-        game.xp = round2(game.xp + cargo);
+        game.xp = round2(game.xp + cargo * (1 + activeCardBonus(vehicle, 'xp') / 100));
         const newLevel = levelForXp(game.xp, game).level;
         if (newLevel > oldLevel) {
           game.expedition.points += 50 * (newLevel - oldLevel);
@@ -1949,7 +1966,7 @@
         const loadedCargo = cargo * paidLegs(order);
         const beforeLevel = levelForXp(game.xp, game).level;
         const { revenue, cost } = tourEconomics(order, truck, cargo, order.delivered);
-        const earnedXp = loadedCargo;
+        const earnedXp = loadedCargo * (1 + activeCardBonus(truck, 'xp', 'single') / 100);
         game.coins = round2(game.coins + revenue - cost);
         game.xp = round2(game.xp + earnedXp);
         game.stats.trips++;
@@ -2575,23 +2592,25 @@
   }
   function renderPersonnel() {
     const expedition = game.expedition;
-    const labels = { regen: 'Expeditionsregeneration', capacity: 'Expeditionskapazität', shards: 'Zusatz-Shard-Chance', duration: 'Kürzere Expeditionsdauer', coins: 'Expeditionsmünzen' };
+    const scopes = { self: 'Eigenes Fahrzeug (Fuhrpark und Projekt)', garage: 'Alle Kartenfahrzeuge im Fuhrpark', single: 'Eigene Einzelaufträge', fleet: 'Alle Fahrzeuge der gewählten Flotte' };
+    const stats = { speed: 'Tempo', cost: 'Betriebskostenersparnis', pay: 'Frachtvergütung', xp: 'Spieler-XP' };
     const currentTemplate = fleetTemplate(selectedFleetTemplate);
-    $('#personnel-slots').innerHTML = `<div class="fleet-template-tabs">${[0, 1, 2].map(index => `<button type="button" class="button ${selectedFleetTemplate === index ? 'button-primary' : 'button-outline'}" data-fleet-template="${index}">Flotte ${index + 1} · ${fleetTemplate(index).filter(Boolean).length}/5</button>`).join('')}</div><p>Flotte 1 gibt die bisherigen Expeditionsboni. Für Großaufträge wählst du eine der drei Vorlagen. Expeditionstransporte fahren Fahrzeuge aus dem Fuhrpark.</p>` + currentTemplate.map((id, index) => `<div class="expedition-seat"><strong>Flottenplatz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id)?.name || 'Unbekannt' : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${selectedFleetTemplate}:${index}">Entfernen</button>` : ''}</div>`).join('');
+    $('#personnel-slots').innerHTML = `<div class="fleet-template-tabs">${[0, 1, 2].map(index => `<button type="button" class="button ${selectedFleetTemplate === index ? 'button-primary' : 'button-outline'}" data-fleet-template="${index}">Flotte ${index + 1} · ${fleetTemplate(index).filter(Boolean).length}/5</button>`).join('')}</div><p>Jede Vorlage kann Großaufträge fahren. Kartenboni wirken nach ihrem angegebenen Einsatzbereich; Expeditionstransporte fahren Fahrzeuge aus dem Fuhrpark.</p>` + currentTemplate.map((id, index) => `<div class="expedition-seat"><strong>Flottenplatz ${index + 1}: ${id ? EXPEDITION_CHARACTERS.find(c => c.id === id)?.name || 'Unbekannt' : 'Frei'}</strong>${id ? `<button class="button button-outline" data-character-remove="${selectedFleetTemplate}:${index}">Entfernen</button>` : ''}</div>`).join('');
     $('#personnel-slot-count').textContent = `${currentTemplate.filter(Boolean).length} / 5 Flottenplätze`;
     $('#personnel-cards').innerHTML = EXPEDITION_CHARACTERS.map(c => {
       const card = expedition.characters[c.id];
       const model = TRUCKS[c.vehicleTier];
       const routes = CATEGORIES.filter(category => category.id !== 'city' && category.tiers.includes(c.vehicleTier)).map(category => category.label).join(' + ');
       const vehicleData = `<p>${model.model} · ${tons(model.capacity)} t Nutzgewicht · ${routes}</p><p>Basisgeschwindigkeit ${speedLabel(truckSpeed({ rarityLevel: 0 }))} leer · ${speedLabel(truckSpeed({ rarityLevel: 0 }, model.capacity))} voll · ${rateMoney(model.emptyCostPerKm)} M/km</p>`;
-      if (!card) return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-gray">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Noch nicht gefunden</p>${vehicleData}</article>`;
+      if (!card) return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-gray">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Noch nicht gefunden</p><p>${scopes[c.scope]} · ${stats[c.stat]} ${c.stat === 'cost' ? '−' : '+'}${cardBonusValue(c, 1)} % auf Level 1</p>${vehicleData}</article>`;
       const tier = card.level < 10 ? c.rarity : null;
       const cost = card.level < 10 ? CHARACTER_LEVEL_COSTS[card.level - 1] : 0;
-      const bonus = c.base + (card.level - 1) * c.step;
+      const bonus = cardBonusValue(c);
+      const progression = Array.from({ length: 10 }, (_, index) => `${index + 1}: ${cardBonusValue(c, index + 1)} %`).join(' · ');
       const parked = cardInGarage(c.id);
       const truck = game.trucks.find(item => item.cardId === c.id);
       const busy = truck && (game.orders.some(order => order.status === 'active' && order.truckId === truck.id) || expedition.missions.some(mission => mission.status === 'active' && mission.truckId === truck.id));
-      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Stufe ${card.level}/10 · ${labels[c.bonus]} +${bonus}${c.bonus === 'capacity' ? '' : ' %'}</p>${vehicleData}<p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<button class="button button-primary" data-garage-${parked ? 'remove' : 'add'}="${c.id}" ${parked ? busy ? 'disabled' : '' : regularTruckCount() >= 10 ? 'disabled' : ''}>${parked ? 'Aus Fuhrpark nehmen' : 'In Fuhrpark einsetzen'}</button><div class="expedition-truck-choices">${currentTemplate.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${selectedFleetTemplate},${seat}" ${id === c.id ? 'disabled' : ''}>Flotte ${selectedFleetTemplate + 1} · Platz ${seat + 1}</button>`).join('')}</div></article>`;
+      return `<article class="personnel-card rarity-${c.rarity}"><span class="pill pill-green">${c.rarity}</span><h3>${c.name}</h3><p>${EXPEDITION_REGIONS[c.region]} · Stufe ${card.level}/10 · ${scopes[c.scope]} · ${stats[c.stat]} ${c.stat === 'cost' ? '−' : '+'}${bonus} %</p><p>Teststaffel Level 1–10: ${progression}</p>${vehicleData}<p>${tier ? `${card.progress}/${cost} ${tier}-Shards bis Stufe ${card.level + 1}` : 'Maximalstufe'}</p>${tier ? `<button class="button button-primary" data-character-shard="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>1 ${tier}-Shard zuweisen</button><button class="button button-outline" data-character-fill="${c.id}" ${expedition.shards[tier] ? '' : 'disabled'}>Bis zum nächsten Level einzahlen</button>` : ''}<button class="button button-primary" data-garage-${parked ? 'remove' : 'add'}="${c.id}" ${parked ? busy ? 'disabled' : '' : regularTruckCount() >= 10 ? 'disabled' : ''}>${parked ? 'Aus Fuhrpark nehmen' : 'In Fuhrpark einsetzen'}</button><div class="expedition-truck-choices">${currentTemplate.map((id, seat) => `<button class="button button-outline" data-character-seat="${c.id}:${selectedFleetTemplate},${seat}" ${id === c.id ? 'disabled' : ''}>Flotte ${selectedFleetTemplate + 1} · Platz ${seat + 1}</button>`).join('')}</div></article>`;
     }).join('');
   }
   function renderCompany() {
@@ -2678,13 +2697,13 @@
     const projectKm = kind => `${kind === 'special' ? 120 : 240} + Regionsindex × ${kind === 'special' ? 25 : 40} km`;
     const pages = {
       dashboard: ['Dashboard', [
-        ['Spielerlevel', `<p>Transportierte Tonnen geben XP: <code>XP je Tour = gelieferte Tonnen × bezahlte Richtungen</code> (bei Dual Way also doppelt). Für den nächsten Aufstieg benötigt Level L bis Level 24 <code>100 × L XP</code>, danach <code>4 × L² XP</code>. Aktuell: Level ${level}, nächste Stufe nach ${integer(playerXpForNextLevel(level))} XP ab Beginn dieses Levels.</p><p>Je Aufstieg: sofort 50 Expeditionspunkte sowie 5 dauerhaft verteilbare Punkte für Expeditions- und Überstundenmaximum. Jeder verteilte Punkt füllt den entsprechenden Vorrat ebenfalls um 1.</p>`],
+        ['Spielerlevel', `<p>Transportierte Tonnen geben XP: <code>XP je Tour = gelieferte Tonnen × bezahlte Richtungen × (1 + aktive Karten-XP-Boni / 100)</code> (bei Dual Way also doppelt). Für den nächsten Aufstieg benötigt Level L bis Level 24 <code>100 × L XP</code>, danach <code>4 × L² XP</code>. Aktuell: Level ${level}, nächste Stufe nach ${integer(playerXpForNextLevel(level))} XP ab Beginn dieses Levels.</p><p>Je Aufstieg: sofort 50 Expeditionspunkte sowie 5 dauerhaft verteilbare Punkte für Expeditions- und Überstundenmaximum. Jeder verteilte Punkt füllt den entsprechenden Vorrat ebenfalls um 1.</p>`],
         ['Münzen und Testknöpfe', `<p>Tourgewinn = Frachtvergütung − Fahrzeugkosten − Lastkosten. Abschlussprämien werden separat abgeholt. Der Testknopf schreibt ${integer(TEST_COINS_GRANT)} M gut; „Spielstand zurücksetzen“ beginnt einen neuen lokalen Spielstand.</p>`],
         ['Automatischer Fortschritt', '<p>Aufträge, Projekte und Expeditionen laufen nach Uhrzeit weiter. Beim erneuten Öffnen werden fällige Touren und Belohnungen nachberechnet. Der Spielstand liegt im Browser.</p>']
       ]],
       orders: ['Aufträge', [
         ['Angebote und Chancen', `<p>${BASE_OFFERS} Angebote zu Beginn, mit Disposition höchstens ${BASE_OFFERS + MAX_OFFER_LEVEL}. Jedes neue Angebot ist mit ${percent(1 - INTERNATIONAL_OFFER_CHANCE)} Regionalverkehr oder ${percent(INTERNATIONAL_OFFER_CHANCE)} Fernverkehr. Pro Angebot gibt es ${percent(CUSTOMER_OFFER_CHANCE)} Grundchance auf einen freigeschalteten Stammkunden des Segments. Fahrart: ${percent(1 - DUAL_WAY_CHANCE)} Single Way, ${percent(DUAL_WAY_CHANCE)} Dual Way.</p>`],
-        ['Transportrechnung', `<p><code>Fracht = gelieferte t × einfache km × ${rateMoney(FREIGHT_PAY_PER_TON_KM)} M/tkm × bezahlte Richtungen</code>. Single Way bezahlt nur die Hinfahrt; Dual Way beide Richtungen. <code>Lastkosten = gelieferte t × einfache km × ${rateMoney(LOAD_COST_PER_TON_KM)} M/tkm × bezahlte Richtungen</code>. Fahrzeugkosten = gefahrene km einschließlich Rückfahrt × Betriebskosten des Fahrzeugs je km.</p><p>Abschlussprämie = Auftragsvolumen × bezahlte Richtungen × ${rateMoney(BASE_COMPLETION_PREMIUM_PER_TON)} M/t × (1 + Firmenprämienbonus). Sie wird nach Abschluss abgeholt.</p>`],
+        ['Transportrechnung', `<p><code>Fracht = gelieferte t × einfache km × ${rateMoney(FREIGHT_PAY_PER_TON_KM)} M/tkm × bezahlte Richtungen × (1 + Kundenfähigkeit/1000) × (1 + aktive Karten-Vergütungsboni/100)</code>. Single Way bezahlt nur die Hinfahrt; Dual Way beide Richtungen. <code>Lastkosten = gelieferte t × einfache km × ${rateMoney(LOAD_COST_PER_TON_KM)} M/tkm × bezahlte Richtungen</code>. Fahrzeugkosten = gefahrene km einschließlich Rückfahrt × Betriebskosten des Fahrzeugs je km.</p><p>Abschlussprämie = Auftragsvolumen × bezahlte Richtungen × ${rateMoney(BASE_COMPLETION_PREMIUM_PER_TON)} M/t × (1 + Firmenprämienbonus). Sie wird nach Abschluss abgeholt.</p>`],
         ['Zeit, Aktualisierung und Halten', `<p>Tourzeit = Strecke / Tempo beladen + Rückweg / Tempo leer; bei Dual Way ist auch der Rückweg beladen. Alle ${AUTO_REFRESH_MS / 60000} Minuten kommen automatisch neue Angebote. Manuell kostet der Wechsel <code>${MANUAL_REFRESH_BASE_COST} M × max(1, eigene Fahrzeuge) × (1 + manuelle Wechsel seit dem letzten automatischen Wechsel)</code>. ${pinLimit()} Angebot(e) können derzeit gehalten werden; gehaltene Angebote überstehen beide Wechselarten.</p>`]
       ]],
       special: ['Großaufträge', [
@@ -2694,11 +2713,11 @@
       ]],
       'expedition-jobs': ['Expeditionsaufträge', [
         ['Fund und Stufen', `<p>Bei jeder Endlosexpedition entfallen absolut ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)} auf einen Fahrzeugkartenauftrag und ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)} auf einen Materialauftrag. Stufe 1/2/3 transportiert ${EXPEDITION_JOB_TONS_PER_TIER}/${EXPEDITION_JOB_TONS_PER_TIER * 2}/${EXPEDITION_JOB_TONS_PER_TIER * 3} t. Die Stufenverteilung hängt von der Region ab; Region 5: ${EXPEDITION_STAGE_WEIGHTS[4].map(percent).join(' / ')}.</p>`],
-        ['Touren und Beute', `<p>Ein freies geeignetes Fuhrparkfahrzeug fährt je Tour ${EXPEDITION_JOB_DISTANCE} km beladen hin und ${EXPEDITION_JOB_DISTANCE} km leer zurück. Touren = aufrunden(Restvolumen / Nutzlast), die letzte Tour kann kleiner sein. Fahrzeugkartenaufträge geben 2 garantierte Shards und mit ${percent(.2)} plus Flottenbonus einen weiteren. Materialaufträge geben mit ${percent(.2)} Shards, ${percent(.003)} ein Kapazitätsmodul und ${percent(COMPANY_BALANCE.materialItemChance)} Firmenausbau-Items.</p>`]
+        ['Touren und Beute', `<p>Ein freies geeignetes Fuhrparkfahrzeug fährt je Tour ${EXPEDITION_JOB_DISTANCE} km beladen hin und ${EXPEDITION_JOB_DISTANCE} km leer zurück. Touren = aufrunden(Restvolumen / Nutzlast), die letzte Tour kann kleiner sein. Fahrzeugkartenaufträge geben 2 garantierte Shards und mit ${percent(.2)} einen weiteren. Materialaufträge geben mit ${percent(.2)} Shards, ${percent(.003)} ein Kapazitätsmodul und ${percent(COMPANY_BALANCE.materialItemChance)} Firmenausbau-Items.</p>`]
       ]],
       fleet: ['Fuhrpark', [
         ['Plätze und Fahrzeuge', `<p>${dispatchCapacity()} Plätze für Kartenfahrzeuge; jede gefundene Karte kann einmal eingesetzt werden. Sie kann zugleich in einer Flottenvorlage stehen. Der Händler verkauft nur Stadttransporter. Geeignete Klassen: Regionalverkehr 7,5-Tonner, 18-Tonner und 26-Tonner; Fernverkehr Sattelzug, 26-Tonner und 40-t-Tautliner.</p>`],
-        ['Tempo und Ausbauten', `<p><code>Tempo = ${SPEED_KM_PER_SECOND} km/s × (1 + ${RARITY_SPEED_PER_LEVEL} × Rangstufen) × (1 − ${SPEED_LOSS_PER_TON} × geladene t)</code>. Jede Rangstufe bringt 0,5 % auf das Basistempo; maximal ${MAX_RARITY_LEVEL} Stufen. 1 Kapazitätsmodul bringt ${tons(CAPACITY_PER_MODULE)} t innerhalb der Modellgrenze. Die Werkstatt senkt die Fahrzeugkosten um 0,001 M/km je Stufe.</p>`],
+        ['Tempo und Ausbauten', `<p><code>Tempo = ${SPEED_KM_PER_SECOND} km/s × (1 + ${RARITY_SPEED_PER_LEVEL} × Rangstufen) × (1 + aktive Karten-Tempo-Boni / 100) × (1 − ${SPEED_LOSS_PER_TON} × geladene t)</code>. Jede Rangstufe bringt 0,5 % auf das Basistempo; maximal ${MAX_RARITY_LEVEL} Stufen. 1 Kapazitätsmodul bringt ${tons(CAPACITY_PER_MODULE)} t innerhalb der Modellgrenze. Betriebskosten je km = max(0, Modellkosten − Werkstattstufen × 0,001) × (1 − Karten-Kostenbonus/100).</p>`],
         ['Einsetzen und Herausnehmen', '<p>Eine Karte bleibt in deiner Sammlung. Beim Herausnehmen bleiben Rang, Kapazität und Fahrstatistik erhalten. Karten mit laufendem normalen Auftrag oder Expeditionsauftrag können erst danach herausgenommen werden. Großaufträge nutzen eine Momentaufnahme der Kartenwerte beim Start.</p>']
       ]],
       dealer: ['Händler', [
@@ -2724,13 +2743,13 @@
         ['Transportsegmente', '<p>Prämienausbau gibt +1 Prozentpunkt auf die einmalige Abschlussprämie je Stufe. Mengenausbau: Maximum +1 t je Stufe, Minimum +1 t je zwei Stufen. Reichweitenstufe erweitert die obere Routengrenze um 1 km. Kosten für neue Stufe N: 2 + abrunden((N−1)/10) Items; Münzen Prämie 10×N², Menge 50×N², Reichweite 100×N².</p>']
       ]],
       expeditions: ['Expeditionen', [
-        ['Punkte und Freischaltung', `<p>Start: ${EXPEDITION_COST * 10} Expeditionspunkte. 1 Punkt regeneriert je ${EXPEDITION_REGEN_MS / 60000} Minuten, beeinflusst durch Flotte 1. Eine Endlosexpedition kostet ${EXPEDITION_COST} Punkte. Ort 1–7 einer Region kostet <code>3 + 9 × Regionsindex + abrunden(Ortsindex/2)</code> Punkte. Region und Endlosort öffnen nach dem 7. Ort der vorherigen Region.</p>`],
+        ['Punkte und Freischaltung', `<p>Start: ${EXPEDITION_COST * 10} Expeditionspunkte. 1 Punkt regeneriert je ${EXPEDITION_REGEN_MS / 60000} Minuten, . Eine Endlosexpedition kostet ${EXPEDITION_COST} Punkte. Ort 1–7 einer Region kostet <code>3 + 9 × Regionsindex + abrunden(Ortsindex/2)</code> Punkte. Region und Endlosort öffnen nach dem 7. Ort der vorherigen Region.</p>`],
         ['Fundchancen je Auslosung', `<p>Genau eine der drei regionalen Karten: Common ${percent(EXPEDITION_CARD_CHANCES[0].chance)}, Uncommon ${percent(EXPEDITION_CARD_CHANCES[1].chance)}, Rare ${percent(EXPEDITION_CARD_CHANCES[2].chance)}. Die übrigen ${percent(1 - EXPEDITION_CARD_CHANCES.reduce((sum, item) => sum + item.chance, 0))}: Fahrzeugkartenauftrag ${percent(EXPEDITION_JOB_WEIGHTS[0].chance * .9)}, Materialauftrag ${percent(EXPEDITION_JOB_WEIGHTS[1].chance * .9)}, Sonderauftrag ${percent(EXPEDITION_JOB_WEIGHTS[2].chance * .9)}, Empfehlungsprojekt ${percent(EXPEDITION_JOB_WEIGHTS[3].chance * .9)}. Duplikate geben 1 Shard der Karten-Seltenheit.</p>`],
         ['Missionen', '<p>Jeder der sieben Orte hat eine einmalige Kapazitätsmission (+1 maximale Expeditionskapazität nach Abholung). Das Freilegen des Endlosorts gibt 1 Modul; sein einmaliger Auftrag schaltet nach Abholung den regionalen Stammkunden frei. Fahrzeuge für diese Transporte kommen aus dem Fuhrpark.</p>']
       ]],
       personnel: ['Flotte', [
-        ['Vorlagen und Boni', '<p>Es gibt drei Vorlagen mit je fünf Plätzen. Eine Karte darf je Vorlage einmal eingesetzt werden und zusätzlich im Fuhrpark stehen. Flotte 1 bestimmt die bisherigen Boni für Expeditionsregeneration, Punktemaximum, Zusatz-Shards, kürzere Missionen und Expeditionsmünzen. Für Großaufträge wählst du beim Start eine der drei Vorlagen; eine Karte genügt. Dieselbe Vorlage darf mehrere Projekte parallel fahren.</p>'],
-        ['Kartenwerte', `<p>Jede Region bietet Common ${percent(EXPEDITION_CARD_CHANCES[0].chance)}, Uncommon ${percent(EXPEDITION_CARD_CHANCES[1].chance)} und Rare ${percent(EXPEDITION_CARD_CHANCES[2].chance)} je Endlosexpedition. Kartenlevel 1–10; Shardkosten: ${CHARACTER_LEVEL_COSTS.join(', ')}. Bonus einer eingesetzten Karte = <code>Grundwert + (Kartenlevel − 1) × Stufenschritt</code>. Als Fahrzeug gelten die Modell-Nutzlast, der Fahrzeugrang und die Tempoformel.</p>`]
+        ['Vorlagen und Boni', '<p>Es gibt drei Vorlagen mit je fünf Plätzen. Eine Karte darf je Vorlage einmal eingesetzt werden und zusätzlich im Fuhrpark stehen. Kartenboni gelten je nach Einsatzbereich für das eigene Fahrzeug, alle Fuhrparkfahrzeuge, eigene Einzelaufträge oder alle Fahrzeuge eines Projekts. Für Großaufträge wählst du beim Start eine der drei Vorlagen; eine Karte genügt. Dieselbe Vorlage darf mehrere Projekte parallel fahren.</p>'],
+        ['Kartenwerte', `<p>Jede Region bietet Common ${percent(EXPEDITION_CARD_CHANCES[0].chance)}, Uncommon ${percent(EXPEDITION_CARD_CHANCES[1].chance)} und Rare ${percent(EXPEDITION_CARD_CHANCES[2].chance)} je Endlosexpedition. Kartenlevel 1–10; Shardkosten: ${CHARACTER_LEVEL_COSTS.join(', ')}. Testbonus in Prozent: Common <code>1 + (Level − 1) × 0,5</code>, Uncommon <code>3 + (Level − 1) × 1</code>, Rare <code>5 + (Level − 1) × 1,5</code>. Gleichartige Boni addieren sich; Tempo und Vergütung werden danach multipliziert, Betriebskosten entsprechend gesenkt. Die konkrete Staffel jedes Fahrzeugs steht auf seiner Karte. Projektboni werden beim Start gespeichert. Als Fahrzeug gelten die Modell-Nutzlast, der Fahrzeugrang und die Tempoformel.</p>`]
       ]],
       statistics: ['Statistiken', [
         ['Transportwerte', `<p>Gelieferte Tonnen zählen pro bezahlter Richtung: Dual Way zählt Hin- und Rückfracht. Gefahrene Kilometer enthalten auch leere Rückfahrten. Tonnenkilometer = gelieferte t × einfache km × bezahlte Richtungen. CO₂ ist eine Schätzung: <code>beladene tkm × ${money(CO2_KG_PER_TON_KM * 1000)} g/tkm</code>; leere Fahrten fehlen darin.</p>`],
@@ -2753,7 +2772,7 @@
       development: 'PRIVATE_PICKUP_HINT_COST, SHARD_COMBINE_RATIO, CHARACTER_LEVEL_COSTS',
       company: 'DEPARTMENTS, TRANSPORT_UPGRADE_LIMITS, COMPANY_BALANCE, transportRules',
       expeditions: 'EXPEDITION_CARD_CHANCES, EXPEDITION_JOB_WEIGHTS, EXPEDITION_STAGE_WEIGHTS, expeditionDuration',
-      personnel: 'EXPEDITION_CHARACTERS, CHARACTER_LEVEL_COSTS, expeditionBonus',
+      personnel: 'EXPEDITION_CHARACTERS, CARD_BONUS_SCALING, CHARACTER_LEVEL_COSTS, cardBonusStats',
       statistics: 'CO2_KG_PER_TON_KM, tourEconomics, renderStatistics',
       customers: 'SPECIAL_CHANCES, TRUST_REWARDS, CUSTOMER_SKILL_LIMITS, trustTotalForLevel'
     };
